@@ -84,8 +84,8 @@ command line — CLI values always win over the file.
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `input_dir` | `str` | `./data/input` | Path to the directory containing source PDF files. All `*.pdf` files in this directory are processed; subdirectories are ignored. |
-| `output_dir` | `str` | `./data/augmented` | Root output directory. Augmented PNGs are written to `<output_dir>/<pdf_stem>/page_NNN_aug_MMM.png`. The directory is created if it does not exist. |
-| `num_augmentations` | `int` | `1` | Number of independently augmented variants to generate **per page**. For a 3-page PDF with `num_augmentations: 5`, the pipeline produces 15 images. Increase this to expand a small document set into a larger training corpus — 3–5 is a practical range before diversity plateaus. |
+| `output_dir` | `str` | `./output/augmented_docs` | Root output directory. Augmented PNGs are written to `<output_dir>/<pdf_stem>/page_NNN_aug_MMM.png`. The directory is created if it does not exist. |
+| `num_augmentations` | `int` | `2` | Number of independently augmented variants to generate **per page**. For a 3-page PDF with `num_augmentations: 5`, the pipeline produces 15 images. Increase this to expand a small document set into a larger training corpus — 3–5 is a practical range before diversity plateaus. |
 
 ---
 
