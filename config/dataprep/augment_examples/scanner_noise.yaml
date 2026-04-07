@@ -1,0 +1,64 @@
+# Example: scanner_noise
+# OneOf: bad_photo_copy / dirty_rollers / dirty_drum / dirty_screen.
+# All four types are in the pool (p=1.0 so noise always fires); each image gets one type at random.
+# Set individual member flags to 0 to restrict the pool to specific types.
+# All other augmentations are disabled so the effect is isolated.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/scanner_noise
+
+run_name: example_scanner_noise
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/augmentation_elements/scanner_noise/
+num_augmentations: 3
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+scanner_noise_p: 1.0
+scanner_noise_bad_photo_copy: 1
+scanner_noise_bad_photo_copy_noise_type: -1
+scanner_noise_bad_photo_copy_noise_side: random
+scanner_noise_bad_photo_copy_noise_iter: [1, 3]
+scanner_noise_bad_photo_copy_noise_size: [1, 4]
+scanner_noise_bad_photo_copy_noise_value: [20, 110]    # wider range for clear demo
+scanner_noise_bad_photo_copy_sparsity: [0.2, 0.7]
+scanner_noise_bad_photo_copy_concentration: [0.1, 0.6]
+scanner_noise_bad_photo_copy_blur_noise: -1
+scanner_noise_bad_photo_copy_wave_pattern: -1
+scanner_noise_bad_photo_copy_edge_effect: -1
+scanner_noise_dirty_rollers: 1
+scanner_noise_dirty_rollers_line_width: [6, 16]
+scanner_noise_dirty_rollers_scanline_type: 0
+scanner_noise_dirty_drum: 1
+scanner_noise_dirty_drum_line_width: [1, 5]
+scanner_noise_dirty_drum_line_concentration: 0.12
+scanner_noise_dirty_drum_direction: -1
+scanner_noise_dirty_drum_noise_intensity: 0.5
+scanner_noise_dirty_drum_noise_value: [0, 40]
+scanner_noise_dirty_drum_ksize: [3, 3]
+scanner_noise_dirty_screen: 1
+scanner_noise_dirty_screen_n_clusters: [50, 100]
+scanner_noise_dirty_screen_n_samples: [3, 20]
+scanner_noise_dirty_screen_std_range: [1, 6]
+scanner_noise_dirty_screen_value_range: [130, 240]
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+low_ink_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+color_paper_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0

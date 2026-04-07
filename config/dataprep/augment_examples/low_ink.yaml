@@ -1,0 +1,46 @@
+# Example: low_ink
+# Faded toner / low-ink horizontal streaks through printed text.
+# OneOf: random_lines (irregular gaps) and periodic_lines (regular banding), both enabled.
+# All other augmentations are disabled so the effect is isolated.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/low_ink
+
+run_name: example_low_ink
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/augmentation_elements/low_ink/
+num_augmentations: 3
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+low_ink_p: 1.0
+low_ink_random_lines: 1
+low_ink_random_lines_count_range: [6, 14]    # more lines for clear demo
+low_ink_random_lines_consistent: 1
+low_ink_random_lines_noise_prob: 0.15
+low_ink_periodic_lines: 1
+low_ink_periodic_lines_count_range: [3, 6]
+low_ink_periodic_lines_period_range: [10, 25]   # tighter spacing for visibility
+low_ink_periodic_lines_consistent: 1
+low_ink_periodic_lines_noise_prob: 0.15
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+color_paper_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0
