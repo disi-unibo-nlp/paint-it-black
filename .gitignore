@@ -1,0 +1,38 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Generated directories — output/reports/ is tracked for committed report artifacts
+output/*
+!output/reports/
+data/
+hf_home/
+
+# SLURM output files
+slurm-*.out
+slurm*
+
+# Jupyter
+.ipynb_checkpoints
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Test caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type checkers / linters
+.mypy_cache/
+.ruff_cache/
+
+# Editors
+.idea/
+.vscode/
