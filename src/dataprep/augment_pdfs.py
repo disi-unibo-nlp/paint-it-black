@@ -328,11 +328,11 @@ def build_pipeline(args) -> AugraphyPipeline:
 
 # ── I/O ───────────────────────────────────────────────────────────────────────
 
-def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, num_augmentations: int, dpi: int, logger) -> int:
+def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, num_augmentations: int, dpi: int, logger, flat: bool = False) -> int:
     """Augment all pages of a single PDF. Returns total images saved."""
     pages = convert_from_path(str(pdf_path), dpi=dpi)
     saved = 0
-    out_subdir = output_dir / pdf_path.stem
+    out_subdir = output_dir if flat else output_dir / pdf_path.stem
     out_subdir.mkdir(parents=True, exist_ok=True)
 
     for page_idx, pil_page in enumerate(pages):
@@ -362,6 +362,8 @@ def main():
     parser.add_argument("--output_dir", type=str, default="./data/augmented")
     parser.add_argument("--num_augmentations", type=int, default=1)
     parser.add_argument("--dpi", type=int, default=200)
+    parser.add_argument("--flat", action="store_true",
+                        help="Write images directly into output_dir (skip per-doc subdir)")
 
     # ── Ink phase ────────────────────────────────────────────────────────────
 
@@ -468,7 +470,7 @@ def main():
 
     # geometric
     parser.add_argument("--geometric_p", type=float, default=0.6)
-    parser.add_argument("--geometric_rotate_range", type=float, nargs=2, default=[-3.0, 3.0])
+    parser.add_argument("--geometric_rotate_range", type=int, nargs=2, default=[-3, 3])
     parser.add_argument("--geometric_padding_value", type=int, nargs=3, default=[255, 255, 255])
 
     # lighting_gradient
@@ -550,7 +552,7 @@ def main():
     total_saved = 0
     for pdf_path in pdf_files:
         logger.info(f"Processing {pdf_path.name} ...")
-        saved = augment_pdf(pdf_path, output_dir, pipeline, args.num_augmentations, args.dpi, logger)
+        saved = augment_pdf(pdf_path, output_dir, pipeline, args.num_augmentations, args.dpi, logger, flat=args.flat)
         logger.info(f"  -> {saved} image(s) saved")
         total_saved += saved
 

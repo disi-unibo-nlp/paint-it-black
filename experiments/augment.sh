@@ -7,5 +7,5 @@
 
 for config in config/dataprep/augment_examples/*; do
     [ -f "$config" ] || continue
-    python3 src/dataprep/augment_pdfs.py --config "$config" "$@"
+    python3 src/dataprep/augment_pdfs.py --num_augmentations 8 --config "$config" --flat "$@"
 done
