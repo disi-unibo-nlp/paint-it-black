@@ -13,9 +13,9 @@ dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 ink_mottling_p: 1.0
-ink_mottling_alpha_range: [0.25, 0.45]       # stronger for clear demo
-ink_mottling_noise_scale_range: [2, 3]
-ink_mottling_gaussian_kernel_range: [3, 7]
+ink_mottling_alpha_range: [0.01, 0.1]       # stronger for clear demo
+ink_mottling_noise_scale_range: [1, 3]
+ink_mottling_gaussian_kernel_range: [1, 5]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0

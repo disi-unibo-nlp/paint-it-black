@@ -9,12 +9,12 @@ log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/augmentation_elements/faxify/
-num_augmentations: 3
+num_augmentations: 6
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 faxify_p: 1.0
-faxify_scale_range: [1.2, 2.0]              # stronger scale reduction for clear demo
+faxify_scale_range: [0.2, 2.0]              # stronger scale reduction for clear demo
 faxify_monochrome: -1                        # -1 = random, 0 = off, 1 = always on
 faxify_halftone: -1
 

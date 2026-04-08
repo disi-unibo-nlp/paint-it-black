@@ -8,15 +8,15 @@ log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/augmentation_elements/exposure/
-num_augmentations: 3
+num_augmentations: 6
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 exposure_p: 1.0
 exposure_brightness: 1
-exposure_brightness_range: [0.55, 1.5]      # wider range for clear demo
+exposure_brightness_range: [0.5, 1.5]      # wider range for clear demo
 exposure_gamma: 1
-exposure_gamma_range: [0.45, 1.6]
+exposure_gamma_range: [0.3, 1.7]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0

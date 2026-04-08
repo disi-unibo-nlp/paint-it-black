@@ -8,15 +8,15 @@ log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/augmentation_elements/folding/
-num_augmentations: 3
+num_augmentations: 6
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 folding_p: 1.0
-folding_fold_count: 3
+folding_fold_count: 1
 folding_fold_noise: 0.02
-folding_gradient_width: [0.1, 0.25]         # slightly wider crease for visibility
-folding_gradient_height: [0.01, 0.03]
+folding_gradient_width: [0.01, 0.2]
+folding_gradient_height: [0.01, 0.2]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0

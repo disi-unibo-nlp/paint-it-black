@@ -8,16 +8,16 @@ log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/augmentation_elements/annotations/
-num_augmentations: 3
+num_augmentations: 6
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 annotations_p: 1.0
 annotations_markup: 1
-annotations_markup_num_lines_range: [2, 6]   # more lines for clear demo
+annotations_markup_num_lines_range: [2, 6]
 annotations_scribbles: 1
-annotations_scribbles_count_range: [1, 4]
-annotations_scribbles_thickness_range: [1, 3]
+annotations_scribbles_count_range: [2, 6]
+annotations_scribbles_thickness_range: [1, 6]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0

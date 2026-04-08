@@ -15,9 +15,9 @@ dpi: 200
 shadow_cast_p: 1.0
 shadow_cast_side: random
 shadow_cast_vertices_range: [2, 8]
-shadow_cast_width_range: [0.2, 0.55]
-shadow_cast_height_range: [0.2, 0.55]
-shadow_cast_opacity_range: [0.3, 0.65]      # stronger opacity for clear demo
+shadow_cast_width_range: [0.1, 0.80]
+shadow_cast_height_range: [0.1, 0.55]
+shadow_cast_opacity_range: [0.05, 0.55]      # stronger opacity for clear demo
 shadow_cast_iterations_range: [1, 2]
 shadow_cast_blur_kernel_range: [101, 301]
 

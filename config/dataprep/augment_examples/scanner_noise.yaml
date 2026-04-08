@@ -27,19 +27,19 @@ scanner_noise_bad_photo_copy_blur_noise: -1
 scanner_noise_bad_photo_copy_wave_pattern: -1
 scanner_noise_bad_photo_copy_edge_effect: -1
 scanner_noise_dirty_rollers: 1
-scanner_noise_dirty_rollers_line_width: [6, 16]
+scanner_noise_dirty_rollers_line_width: [2, 12]
 scanner_noise_dirty_rollers_scanline_type: 0
 scanner_noise_dirty_drum: 1
-scanner_noise_dirty_drum_line_width: [1, 5]
+scanner_noise_dirty_drum_line_width: [1, 3]
 scanner_noise_dirty_drum_line_concentration: 0.12
 scanner_noise_dirty_drum_direction: -1
 scanner_noise_dirty_drum_noise_intensity: 0.5
 scanner_noise_dirty_drum_noise_value: [0, 40]
-scanner_noise_dirty_drum_ksize: [3, 3]
+scanner_noise_dirty_drum_ksize: [2, 2]
 scanner_noise_dirty_screen: 1
-scanner_noise_dirty_screen_n_clusters: [50, 100]
-scanner_noise_dirty_screen_n_samples: [3, 20]
-scanner_noise_dirty_screen_std_range: [1, 6]
+scanner_noise_dirty_screen_n_clusters: [15, 40]
+scanner_noise_dirty_screen_n_samples: [2, 10]
+scanner_noise_dirty_screen_std_range: [1, 4]
 scanner_noise_dirty_screen_value_range: [130, 240]
 
 # ── disabled ──────────────────────────────────────────────────────────────────

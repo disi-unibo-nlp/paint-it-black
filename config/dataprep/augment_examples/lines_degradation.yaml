@@ -14,9 +14,9 @@ dpi: 200
 # ── showcased ─────────────────────────────────────────────────────────────────
 lines_degradation_p: 1.0
 lines_degradation_gradient_range: [32, 180]
-lines_degradation_split_probability: [0.3, 0.5]     # more splitting for visibility
+lines_degradation_split_probability: [0.2, 0.6]     # more splitting for visibility
 lines_degradation_replacement_value: [240, 255]
-lines_degradation_replacement_probability: [0.4, 0.6]
+lines_degradation_replacement_probability: [0.2, 0.6]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0

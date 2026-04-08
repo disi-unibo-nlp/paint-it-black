@@ -13,7 +13,7 @@ dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 subtle_noise_p: 1.0
-subtle_noise_range: 30                       # higher than default for clear demo
+subtle_noise_range: 20                       # higher than default for clear demo
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0

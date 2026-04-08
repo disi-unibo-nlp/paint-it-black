@@ -13,7 +13,7 @@ dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 page_border_p: 1.0
-page_border_rotation_range: [-3.0, 3.0]
+page_border_rotation_range: [-0.5, 0.5]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0

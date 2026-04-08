@@ -13,7 +13,7 @@ dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 lighting_gradient_p: 1.0
-lighting_gradient_max_brightness: 255
+lighting_gradient_max_brightness: 128
 lighting_gradient_min_brightness: 0
 lighting_gradient_mode: gaussian    # gaussian | linear
 
