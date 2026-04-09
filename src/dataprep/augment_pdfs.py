@@ -116,9 +116,13 @@ def _build_ink_phase(args) -> list:
     if args.lines_degradation_p > 0:
         phase.append(LinesDegradation(
             line_gradient_range=tuple(args.lines_degradation_gradient_range),
+            line_gradient_direction=tuple(args.lines_degradation_gradient_direction),
             line_split_probability=tuple(args.lines_degradation_split_probability),
             line_replacement_value=tuple(args.lines_degradation_replacement_value),
             line_replacement_probability=tuple(args.lines_degradation_replacement_probability),
+            line_min_length=tuple(args.lines_degradation_min_length),
+            line_long_to_short_ratio=tuple(args.lines_degradation_long_to_short_ratio),
+            line_replacement_thickness=tuple(args.lines_degradation_replacement_thickness),
             p=args.lines_degradation_p,
         ))
 
@@ -236,7 +240,7 @@ def _build_post_phase(args) -> list:
             max_brightness=args.lighting_gradient_max_brightness,
             min_brightness=args.lighting_gradient_min_brightness,
             mode=args.lighting_gradient_mode,
-            transparency=None,
+            transparency=args.lighting_gradient_transparency,
             p=args.lighting_gradient_p,
         ))
 
@@ -280,6 +284,11 @@ def _build_post_phase(args) -> list:
     if args.page_border_p > 0:
         phase.append(PageBorder(
             page_rotation_angle_range=tuple(args.page_border_rotation_range),
+            page_rotate_angle_in_order=args.page_border_rotate_in_order,
+            page_border_color=tuple(args.page_border_color),
+            curve_frequency=tuple(args.page_border_curve_frequency),
+            curve_height=tuple(args.page_border_curve_height),
+            curve_length_one_side=tuple(args.page_border_curve_length),
             same_page_border=1,
             p=args.page_border_p,
         ))
@@ -403,9 +412,13 @@ def main():
     # lines_degradation
     parser.add_argument("--lines_degradation_p", type=float, default=0.3)
     parser.add_argument("--lines_degradation_gradient_range", type=int, nargs=2, default=[32, 200])
+    parser.add_argument("--lines_degradation_gradient_direction", type=int, nargs=2, default=[0, 2])
     parser.add_argument("--lines_degradation_split_probability", type=float, nargs=2, default=[0.2, 0.4])
     parser.add_argument("--lines_degradation_replacement_value", type=int, nargs=2, default=[245, 255])
     parser.add_argument("--lines_degradation_replacement_probability", type=float, nargs=2, default=[0.3, 0.5])
+    parser.add_argument("--lines_degradation_min_length", type=int, nargs=2, default=[30, 40])
+    parser.add_argument("--lines_degradation_long_to_short_ratio", type=int, nargs=2, default=[5, 7])
+    parser.add_argument("--lines_degradation_replacement_thickness", type=int, nargs=2, default=[1, 3])
 
     # ── Paper phase ──────────────────────────────────────────────────────────
 
@@ -478,6 +491,7 @@ def main():
     parser.add_argument("--lighting_gradient_max_brightness", type=int, default=255)
     parser.add_argument("--lighting_gradient_min_brightness", type=int, default=0)
     parser.add_argument("--lighting_gradient_mode", type=str, default="gaussian")
+    parser.add_argument("--lighting_gradient_transparency", type=float, default=None)
 
     # shadow_cast
     parser.add_argument("--shadow_cast_p", type=float, default=0.25)
@@ -514,6 +528,11 @@ def main():
     # page_border
     parser.add_argument("--page_border_p", type=float, default=0.3)
     parser.add_argument("--page_border_rotation_range", type=float, nargs=2, default=[-2.0, 2.0])
+    parser.add_argument("--page_border_rotate_in_order", type=int, default=1)
+    parser.add_argument("--page_border_color", type=int, nargs=3, default=[0, 0, 0])
+    parser.add_argument("--page_border_curve_frequency", type=int, nargs=2, default=[0, 1])
+    parser.add_argument("--page_border_curve_height", type=int, nargs=2, default=[2, 4])
+    parser.add_argument("--page_border_curve_length", type=int, nargs=2, default=[50, 100])
 
     # annotations (OneOf: markup / scribbles)
     parser.add_argument("--annotations_p", type=float, default=0.3)
