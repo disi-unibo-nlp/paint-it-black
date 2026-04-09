@@ -3,11 +3,11 @@
 # All other augmentations are disabled so the effect is isolated.
 # Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/shadow_cast
 
-run_name: example_shadow_cast
+run_name: shadow_cast
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
-output_dir: ./output/augmentation_elements/shadow_cast/
+output_dir: ./output/augmentation_elements
 num_augmentations: 3
 dpi: 200
 

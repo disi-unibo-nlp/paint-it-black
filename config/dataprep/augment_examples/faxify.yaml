@@ -4,11 +4,11 @@
 # All other augmentations are disabled so the effect is isolated.
 # Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/faxify
 
-run_name: example_faxify
+run_name: faxify
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
-output_dir: ./output/augmentation_elements/faxify/
+output_dir: ./output/augmentation_elements
 num_augmentations: 6
 dpi: 200
 

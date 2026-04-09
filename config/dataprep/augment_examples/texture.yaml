@@ -4,11 +4,11 @@
 # All other augmentations are disabled so the effect is isolated.
 # Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/texture
 
-run_name: example_texture
+run_name: texture
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
-output_dir: ./output/augmentation_elements/texture/
+output_dir: ./output/augmentation_elements
 num_augmentations: 3
 dpi: 200
 

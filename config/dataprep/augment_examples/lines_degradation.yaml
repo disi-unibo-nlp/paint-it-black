@@ -3,11 +3,11 @@
 # All other augmentations are disabled so the effect is isolated.
 # Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/lines_degradation
 
-run_name: example_lines_degradation
+run_name: lines_degradation
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
-output_dir: ./output/augmentation_elements/lines_degradation/
+output_dir: ./output/augmentation_elements
 num_augmentations: 3
 dpi: 200
 

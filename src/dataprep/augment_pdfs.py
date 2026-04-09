@@ -535,7 +535,7 @@ def main():
     set_seed(args.seed)
 
     input_dir = Path(args.input_dir)
-    output_dir = Path(args.output_dir)
+    output_dir = Path(args.output_dir) / args.run_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
     pdf_files = sorted(input_dir.glob("*.pdf"))
