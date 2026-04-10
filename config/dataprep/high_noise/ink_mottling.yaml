@@ -1,0 +1,39 @@
+# high_noise_mix: ink_mottling
+# Heavy patchy toner density — aggressive mottling from worn photocopier drums.
+# Higher alpha and wider kernel range than the low_noise variant.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise_mix/ink_mottling
+
+run_name: ink_mottling
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/high_noise
+num_augmentations: 6
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+ink_mottling_p: 1.0
+ink_mottling_alpha_range: [0.28, 0.50]
+ink_mottling_noise_scale_range: [2, 8]
+ink_mottling_gaussian_kernel_range: [5, 21]
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+low_ink_p: 0.0
+lines_degradation_p: 0.0
+color_paper_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0
