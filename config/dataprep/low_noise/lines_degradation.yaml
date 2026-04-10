@@ -13,14 +13,14 @@ dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 lines_degradation_p: 1.0
-lines_degradation_gradient_range: [32, 180]
-lines_degradation_gradient_direction: [0, 2]         # 0=horizontal, 1=vertical, 2=both
-lines_degradation_split_probability: [0.5, 0.75]     # high fragmentation → small gaps, not solid erasure
-lines_degradation_replacement_value: [160, 215]       # faded, not white-out
-lines_degradation_replacement_probability: [0.35, 0.55] # fraction of lines targeted
-lines_degradation_min_length: [40, 60]               # ignore short noise artifacts
-lines_degradation_long_to_short_ratio: [5, 7]        # elongated contours only
-lines_degradation_replacement_thickness: [1, 2]      # thin marks
+lines_degradation_gradient_range: [32, 255]
+lines_degradation_gradient_direction: [0, 2]
+lines_degradation_split_probability: [0.2, 0.4]
+lines_degradation_replacement_value: [250, 255]
+lines_degradation_replacement_probability: [0.4, 0.5]
+lines_degradation_min_length: [30, 40]
+lines_degradation_long_to_short_ratio: [5, 7]
+lines_degradation_replacement_thickness: [1, 3]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0
