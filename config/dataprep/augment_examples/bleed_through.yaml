@@ -1,0 +1,42 @@
+# Example: bleed_through
+# Back-page ink ghost visible through the paper — very common on thin hospital forms.
+# All other augmentations are disabled so the effect is isolated.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/bleed_through
+
+run_name: bleed_through
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/augmentation_elements
+num_augmentations: 6
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+bleed_through_p: 1.0
+bleed_through_intensity_range: [0.1, 0.4]   # higher intensity for clear demo
+bleed_through_color_range: [0, 200]
+bleed_through_ksize: [17, 17]
+bleed_through_sigma_x: 1
+bleed_through_alpha: 0.15                    # stronger ghost for visibility
+bleed_through_offsets: [15, 15]
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+low_ink_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+color_paper_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0

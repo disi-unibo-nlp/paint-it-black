@@ -1,0 +1,38 @@
+# Example: color_paper
+# Ages and yellows the paper background — typical of hospital chart paper stored over time.
+# All other augmentations are disabled so the effect is isolated.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/color_paper
+
+run_name: color_paper
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/augmentation_elements
+num_augmentations: 6
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+color_paper_p: 1.0
+color_paper_hue_range: [18, 50]             # warm yellow-tan range
+color_paper_saturation_range: [2, 20]      # stronger saturation for clear demo
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+low_ink_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0

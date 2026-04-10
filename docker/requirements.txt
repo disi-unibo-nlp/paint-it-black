@@ -1,0 +1,6 @@
+augraphy
+pdf2image
+opencv-python-headless
+Pillow
+pyyaml
+numpy

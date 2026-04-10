@@ -1,0 +1,78 @@
+# Example: final_mix
+# Mix of various low-noise augmentations.
+# All other augmentations are disabled so the effect is isolated.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/final_mix
+
+run_name: final_mix
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/low_noise
+num_augmentations: 3
+dpi: 200
+
+# ── color paper ─────────────────────────────────────────────────────────────────
+color_paper_p: 0.5
+color_paper_hue_range: [18, 50]             # warm yellow-tan range
+color_paper_saturation_range: [5, 20]      # stronger saturation for clear demo
+
+# ── ink bleed ─────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.8
+ink_bleed_intensity_range: [0.70, 1.00]
+ink_bleed_kernel_size: [3, 6]
+ink_bleed_severity: [0.38, 0.85]
+
+# ── ink mottling ─────────────────────────────────────────────────────────────────
+ink_mottling_p: 0.4
+ink_mottling_alpha_range: [0.12, 0.20]
+ink_mottling_noise_scale_range: [2, 6]
+ink_mottling_gaussian_kernel_range: [3, 11]
+
+# ── lighting gradient ─────────────────────────────────────────────────────────────────
+lighting_gradient_p: 1.0
+lighting_gradient_max_brightness: 255
+lighting_gradient_min_brightness: 50
+lighting_gradient_mode: gaussian    # gaussian | linear
+lighting_gradient_transparency: 0.90  # fixes random.uniform(0.5,0.85) default which causes extreme dimming
+
+# ── low ink ─────────────────────────────────────────────────────────────────
+low_ink_p: 1.0
+low_ink_random_lines: 1
+low_ink_random_lines_count_range: [1, 4]
+low_ink_random_lines_consistent: 0
+low_ink_random_lines_noise_prob: 0.4
+low_ink_periodic_lines: 1
+low_ink_periodic_lines_count_range: [1, 3]
+low_ink_periodic_lines_period_range: [5, 12]
+low_ink_periodic_lines_consistent: 0
+low_ink_periodic_lines_noise_prob: 0.4
+
+# ── lines degradation ─────────────────────────────────────────────────────────────────
+lines_degradation_p: 0.5
+lines_degradation_gradient_range: [32, 255]
+lines_degradation_gradient_direction: [0, 2]
+lines_degradation_split_probability: [0.2, 0.4]
+lines_degradation_replacement_value: [250, 255]
+lines_degradation_replacement_probability: [0.4, 0.5]
+lines_degradation_min_length: [30, 40]
+lines_degradation_long_to_short_ratio: [5, 7]
+lines_degradation_replacement_thickness: [1, 3]
+
+# ── subtle noise ─────────────────────────────────────────────────────────────────
+subtle_noise_p: 0.5
+subtle_noise_range: 18
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+bleed_through_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0

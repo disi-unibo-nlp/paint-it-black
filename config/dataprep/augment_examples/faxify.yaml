@@ -1,0 +1,40 @@
+# Example: faxify
+# Fax transmission simulation — resolution reduction, monochrome conversion, halftone screening.
+# Use sparingly in training sets (keep below ~15% of samples); fax drastically degrades quality.
+# All other augmentations are disabled so the effect is isolated.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/faxify
+
+run_name: faxify
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/augmentation_elements
+num_augmentations: 6
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+faxify_p: 1.0
+faxify_scale_range: [0.2, 2.0]              # stronger scale reduction for clear demo
+faxify_monochrome: -1                        # -1 = random, 0 = off, 1 = always on
+faxify_halftone: -1
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+low_ink_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+color_paper_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0

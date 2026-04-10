@@ -1,0 +1,39 @@
+# Example: stains
+# Coffee, water, or liquid marks on paper — realistic for hospital documents in common areas.
+# All other augmentations are disabled so the effect is isolated.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/stains
+
+run_name: stains
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/augmentation_elements
+num_augmentations: 3
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+stains_p: 1.0
+stains_type: random           # rough_stains | fine_stains | severe_stains | light_stains | random
+stains_blend_method: darken
+stains_blend_alpha: 0.1      # stronger alpha for clear demo
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+low_ink_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+color_paper_p: 0.0
+texture_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0
