@@ -129,10 +129,62 @@ def _build_ink_phase(args) -> list:
     return phase
 
 
+def _build_per_image_pipeline(args, ink_phase, base_paper_phase, post_phase):
+    """Return a new AugraphyPipeline with a freshly sampled ColorPaper in the paper phase.
+
+    Called once per augmented image when color_paper_page_sampling=1. ColorPaper is placed
+    at the front of the paper phase so it only colours the blank paper canvas — before ink
+    is composited — preserving hue of coloured document elements.
+    """
+    hue_ranges = list(zip(
+        args.color_paper_profile_hue_ranges[0::2],
+        args.color_paper_profile_hue_ranges[1::2],
+    ))
+    sat_ranges = list(zip(
+        args.color_paper_profile_saturation_ranges[0::2],
+        args.color_paper_profile_saturation_ranges[1::2],
+    ))
+    weights = np.array(args.color_paper_profile_weights, dtype=float)
+    idx = np.random.choice(len(weights), p=weights / weights.sum())
+    sampled_color_paper = ColorPaper(
+        hue_range=hue_ranges[idx],
+        saturation_range=sat_ranges[idx],
+        p=args.color_paper_p,
+    )
+    return AugraphyPipeline(
+        ink_phase=ink_phase,
+        paper_phase=[sampled_color_paper] + list(base_paper_phase),
+        post_phase=post_phase,
+        random_seed=args.seed,
+        log=False,
+    )
+
+
+def _apply_page_sampled_augmentations(img, args):
+    """Apply SubtleNoise with per-image profile sampling (post-pipeline).
+
+    SubtleNoise adds small uniform channel offsets that don't affect hue relationships,
+    so applying it post-pipeline is correct. ColorPaper is handled separately via
+    _build_per_image_pipeline (paper phase, before ink compositing).
+    When page_sampling is disabled for SubtleNoise this is a no-op.
+    """
+    result = img
+
+    if args.subtle_noise_page_sampling and args.subtle_noise_p > 0:
+        weights = np.array(args.subtle_noise_profile_weights, dtype=float)
+        idx = np.random.choice(len(weights), p=weights / weights.sum())
+        result = SubtleNoise(
+            subtle_range=args.subtle_noise_profile_ranges[idx],
+            p=args.subtle_noise_p,
+        )(result)
+
+    return result
+
+
 def _build_paper_phase(args) -> list:
     phase = []
 
-    if args.color_paper_p > 0:
+    if args.color_paper_p > 0 and not args.color_paper_page_sampling:
         phase.append(ColorPaper(
             hue_range=tuple(args.color_paper_hue_range),
             saturation_range=tuple(args.color_paper_saturation_range),
@@ -266,7 +318,7 @@ def _build_post_phase(args) -> list:
         if members:
             phase.append(OneOf(members, p=args.exposure_p))
 
-    if args.subtle_noise_p > 0:
+    if args.subtle_noise_p > 0 and not args.subtle_noise_page_sampling:
         phase.append(SubtleNoise(subtle_range=args.subtle_noise_range, p=args.subtle_noise_p))
 
     if args.jpeg_p > 0:
@@ -337,17 +389,31 @@ def build_pipeline(args) -> AugraphyPipeline:
 
 # ── I/O ───────────────────────────────────────────────────────────────────────
 
-def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, num_augmentations: int, dpi: int, logger, flat: bool = False) -> int:
+def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, args, num_augmentations: int, dpi: int, logger, flat: bool = False) -> int:
     """Augment all pages of a single PDF. Returns total images saved."""
     pages = convert_from_path(str(pdf_path), dpi=dpi)
     saved = 0
     out_subdir = output_dir if flat else output_dir / pdf_path.stem
     out_subdir.mkdir(parents=True, exist_ok=True)
 
+    # Pre-build reusable phases for per-image pipeline construction (color_paper page sampling).
+    # ColorPaper is sampled once per augmented image and placed in the paper phase so it
+    # only colours the blank canvas — before ink compositing.
+    _use_per_image_pipeline = args.color_paper_page_sampling and args.color_paper_p > 0
+    if _use_per_image_pipeline:
+        _ink_phase = _build_ink_phase(args)
+        _base_paper_phase = _build_paper_phase(args)  # ColorPaper already excluded
+        _post_phase = _build_post_phase(args)
+
     for page_idx, pil_page in enumerate(pages):
         img = cv2.cvtColor(np.array(pil_page), cv2.COLOR_RGB2BGR)
         for aug_idx in range(num_augmentations):
-            augmented = pipeline(img)
+            if _use_per_image_pipeline:
+                aug_pipeline = _build_per_image_pipeline(args, _ink_phase, _base_paper_phase, _post_phase)
+            else:
+                aug_pipeline = pipeline
+            augmented = aug_pipeline(img)
+            augmented = _apply_page_sampled_augmentations(augmented, args)
             out_path = out_subdir / f"page_{page_idx:03d}_aug_{aug_idx:03d}.png"
             cv2.imwrite(str(out_path), augmented)
             saved += 1
@@ -426,6 +492,11 @@ def main():
     parser.add_argument("--color_paper_p", type=float, default=0.7)
     parser.add_argument("--color_paper_hue_range", type=int, nargs=2, default=[20, 45])
     parser.add_argument("--color_paper_saturation_range", type=int, nargs=2, default=[10, 35])
+    parser.add_argument("--color_paper_page_sampling", type=int, default=0)
+    parser.add_argument("--color_paper_num_profiles", type=int, default=1)
+    parser.add_argument("--color_paper_profile_weights", type=float, nargs="+", default=[1.0])
+    parser.add_argument("--color_paper_profile_hue_ranges", type=int, nargs="+", default=[20, 45])
+    parser.add_argument("--color_paper_profile_saturation_ranges", type=int, nargs="+", default=[10, 35])
 
     # texture (AugmentationSequence: noise_texturize + brightness_texturize)
     parser.add_argument("--texture_p", type=float, default=0.6)
@@ -513,6 +584,10 @@ def main():
     # subtle_noise
     parser.add_argument("--subtle_noise_p", type=float, default=0.5)
     parser.add_argument("--subtle_noise_range", type=int, default=12)
+    parser.add_argument("--subtle_noise_page_sampling", type=int, default=0)
+    parser.add_argument("--subtle_noise_num_profiles", type=int, default=1)
+    parser.add_argument("--subtle_noise_profile_weights", type=float, nargs="+", default=[1.0])
+    parser.add_argument("--subtle_noise_profile_ranges", type=int, nargs="+", default=[12])
 
     # jpeg
     parser.add_argument("--jpeg_p", type=float, default=0.4)
@@ -571,7 +646,7 @@ def main():
     total_saved = 0
     for pdf_path in pdf_files:
         logger.info(f"Processing {pdf_path.name} ...")
-        saved = augment_pdf(pdf_path, output_dir, pipeline, args.num_augmentations, args.dpi, logger, flat=args.flat)
+        saved = augment_pdf(pdf_path, output_dir, pipeline, args, args.num_augmentations, args.dpi, logger, flat=args.flat)
         logger.info(f"  -> {saved} image(s) saved")
         total_saved += saved
 
