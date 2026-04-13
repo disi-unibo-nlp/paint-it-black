@@ -1,0 +1,150 @@
+# high_noise_mix
+# All augmentations from config/dataprep/high_noise/ combined.
+# All used augmentation probabilities are set to 1.0 — tune them below.
+# Earlier configs (continuous degradations) appear first; rarer/high-impact ones at the end.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise_mix
+
+run_name: high_noise_mix
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/high_noise_mix
+num_augmentations: 3
+dpi: 200
+
+# ── ink bleed ─────────────────────────────────────────────────────────────────
+ink_bleed_p: 1.0
+ink_bleed_intensity_range: [0.65, 0.90]
+ink_bleed_kernel_size: [3, 8]
+ink_bleed_severity: [0.40, 0.70]
+
+# ── ink mottling ──────────────────────────────────────────────────────────────
+ink_mottling_p: 1.0
+ink_mottling_alpha_range: [0.28, 0.50]
+ink_mottling_noise_scale_range: [2, 8]
+ink_mottling_gaussian_kernel_range: [5, 21]
+
+# ── low ink ───────────────────────────────────────────────────────────────────
+low_ink_p: 1.0
+low_ink_random_lines: 1
+low_ink_random_lines_count_range: [3, 8]
+low_ink_random_lines_consistent: 0
+low_ink_random_lines_noise_prob: 0.5
+low_ink_periodic_lines: 1
+low_ink_periodic_lines_count_range: [3, 6]
+low_ink_periodic_lines_period_range: [3, 8]
+low_ink_periodic_lines_consistent: 0
+low_ink_periodic_lines_noise_prob: 0.5
+
+# ── lines degradation ─────────────────────────────────────────────────────────
+lines_degradation_p: 1.0
+lines_degradation_gradient_range: [32, 255]
+lines_degradation_gradient_direction: [0, 2]
+lines_degradation_split_probability: [0.2, 0.4]
+lines_degradation_replacement_value: [250, 255]
+lines_degradation_replacement_probability: [0.4, 0.5]
+lines_degradation_min_length: [30, 40]
+lines_degradation_long_to_short_ratio: [5, 7]
+lines_degradation_replacement_thickness: [1, 3]
+
+# ── color paper (page-level sampling: near-white / cream / aged yellow) ───────
+color_paper_p: 1.0
+color_paper_page_sampling: 1
+color_paper_num_profiles: 3
+color_paper_profile_weights: [0.30, 0.40, 0.30]
+#                              near-white     cream        aged yellow
+color_paper_profile_hue_ranges:        [15, 20,  15, 25,   20, 30]
+color_paper_profile_saturation_ranges: [ 5, 15,  15, 40,   40, 80]
+
+# ── lighting gradient ─────────────────────────────────────────────────────────
+lighting_gradient_p: 1.0
+lighting_gradient_max_brightness: 255
+lighting_gradient_min_brightness: 20
+lighting_gradient_mode: gaussian
+lighting_gradient_transparency: 0.78
+
+# ── subtle noise (page-level sampling: low / stronger) ────────────────────────
+subtle_noise_p: 1.0
+subtle_noise_page_sampling: 1
+subtle_noise_num_profiles: 2
+subtle_noise_profile_weights: [0.50, 0.50]
+#                              low_noise_mix  stronger
+subtle_noise_profile_ranges:  [18,            30]
+
+# ── scanner noise (OneOf: BadPhotoCopy / DirtyRollers / DirtyDrum / DirtyScreen)
+scanner_noise_p: 0.3
+scanner_noise_bad_photo_copy: 1
+scanner_noise_bad_photo_copy_noise_type: -1
+scanner_noise_bad_photo_copy_noise_side: random
+scanner_noise_bad_photo_copy_noise_iter: [1, 3]
+scanner_noise_bad_photo_copy_noise_size: [1, 4]
+scanner_noise_bad_photo_copy_noise_value: [20, 110]
+scanner_noise_bad_photo_copy_sparsity: [0.2, 0.7]
+scanner_noise_bad_photo_copy_concentration: [0.1, 0.6]
+scanner_noise_bad_photo_copy_blur_noise: -1
+scanner_noise_bad_photo_copy_wave_pattern: -1
+scanner_noise_bad_photo_copy_edge_effect: -1
+scanner_noise_dirty_rollers: 1
+scanner_noise_dirty_rollers_line_width: [2, 12]
+scanner_noise_dirty_rollers_scanline_type: 0
+scanner_noise_dirty_drum: 1
+scanner_noise_dirty_drum_line_width: [1, 3]
+scanner_noise_dirty_drum_line_concentration: 0.12
+scanner_noise_dirty_drum_direction: -1
+scanner_noise_dirty_drum_noise_intensity: 0.5
+scanner_noise_dirty_drum_noise_value: [0, 40]
+scanner_noise_dirty_drum_ksize: [2, 2]
+scanner_noise_dirty_screen: 1
+scanner_noise_dirty_screen_n_clusters: [15, 40]
+scanner_noise_dirty_screen_n_samples: [2, 10]
+scanner_noise_dirty_screen_std_range: [1, 4]
+scanner_noise_dirty_screen_value_range: [130, 240]
+
+# ── shadow cast ───────────────────────────────────────────────────────────────
+shadow_cast_p: 0.4
+shadow_cast_side: random
+shadow_cast_vertices_range: [2, 12]
+shadow_cast_width_range: [0.05, 0.90]
+shadow_cast_height_range: [0.05, 0.70]
+shadow_cast_opacity_range: [0.05, 0.60]
+shadow_cast_iterations_range: [1, 3]
+shadow_cast_blur_kernel_range: [51, 401]
+
+# ── stains ────────────────────────────────────────────────────────────────────
+stains_p: 0.2
+stains_type: fine_stains
+stains_blend_method: darken
+stains_blend_alpha: 0.2
+
+# ── annotations (OneOf: markup / scribbles) ───────────────────────────────────
+annotations_p: 0.2
+annotations_markup: 1
+annotations_markup_type: highlight
+annotations_markup_num_lines_range: [10, 25]
+annotations_markup_length_range: [1.0, 1.0]
+annotations_markup_thickness_range: [1, 4]
+annotations_scribbles: 1
+annotations_scribbles_size_range: [800, 1600]
+annotations_scribbles_count_range: [5, 12]
+annotations_scribbles_thickness_range: [1, 4]
+
+# ── faxify (profile sampling: mono-only / halftone-only / both) ───────────────
+faxify_p: 0.3
+faxify_profile_sampling: 1
+faxify_profile_weights: [0.33, 0.34, 0.33]
+#                        mono-only  halftone-only  both
+faxify_scale_range: [0.2, 2.0]
+faxify_monochrome_method: random
+faxify_half_kernel_size: [1, 1]
+faxify_angle: [0, 360]
+faxify_sigma: [1.0, 3.0]
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+bleed_through_p: 0.0
+texture_p: 0.0
+watermark_p: 0.0
+geometric_p: 0.0
+exposure_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0

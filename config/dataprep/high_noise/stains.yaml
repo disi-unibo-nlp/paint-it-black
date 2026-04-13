@@ -1,0 +1,39 @@
+# high_noise: stains
+# Localized paper stains using fine_stains type — smaller, more contained blobs
+# than rough_stains or severe_stains. blend_alpha=0.2 keeps them visible but subtle.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise/stains
+
+run_name: stains
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/high_noise
+num_augmentations: 6
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+stains_p: 1.0
+stains_type: fine_stains
+stains_blend_method: darken
+stains_blend_alpha: 0.2
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+low_ink_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+color_paper_p: 0.0
+texture_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0

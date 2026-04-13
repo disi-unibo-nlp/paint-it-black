@@ -161,22 +161,45 @@ def _build_per_image_pipeline(args, ink_phase, base_paper_phase, post_phase):
 
 
 def _apply_page_sampled_augmentations(img, args):
-    """Apply SubtleNoise with per-image profile sampling (post-pipeline).
+    """Apply per-image profile-sampled augmentations (post-pipeline).
 
-    SubtleNoise adds small uniform channel offsets that don't affect hue relationships,
-    so applying it post-pipeline is correct. ColorPaper is handled separately via
-    _build_per_image_pipeline (paper phase, before ink compositing).
-    When page_sampling is disabled for SubtleNoise this is a no-op.
+    SubtleNoise: adds small uniform channel offsets, safe post-pipeline.
+    Faxify: samples one of three discrete modes (mono-only, halftone-only, both).
+    ColorPaper is handled separately via _build_per_image_pipeline (paper phase).
+    When all profile_sampling flags are disabled this is a no-op.
     """
     result = img
 
+    # NOTE: augraphy augmentations return None when their internal probability check fails.
+    # All augmentations called here use p=1.0 and handle the _p probability manually so we
+    # never assign None back to result.
+
     if args.subtle_noise_page_sampling and args.subtle_noise_p > 0:
-        weights = np.array(args.subtle_noise_profile_weights, dtype=float)
-        idx = np.random.choice(len(weights), p=weights / weights.sum())
-        result = SubtleNoise(
-            subtle_range=args.subtle_noise_profile_ranges[idx],
-            p=args.subtle_noise_p,
-        )(result)
+        if np.random.random() < args.subtle_noise_p:
+            weights = np.array(args.subtle_noise_profile_weights, dtype=float)
+            idx = np.random.choice(len(weights), p=weights / weights.sum())
+            result = SubtleNoise(
+                subtle_range=args.subtle_noise_profile_ranges[idx],
+                p=1.0,
+            )(result)
+
+    if args.faxify_profile_sampling and args.faxify_p > 0:
+        if np.random.random() < args.faxify_p:
+            # Profiles: 0=mono-only, 1=halftone-only, 2=both
+            weights = np.array(args.faxify_profile_weights, dtype=float)
+            idx = np.random.choice(len(weights), p=weights / weights.sum())
+            mono = 1 if idx in (0, 2) else 0
+            halftone = 1 if idx in (1, 2) else 0
+            result = Faxify(
+                scale_range=tuple(args.faxify_scale_range),
+                monochrome=mono,
+                monochrome_method=args.faxify_monochrome_method,
+                halftone=halftone,
+                half_kernel_size=tuple(args.faxify_half_kernel_size),
+                angle=tuple(args.faxify_angle),
+                sigma=tuple(args.faxify_sigma),
+                p=1.0,
+            )(result)
 
     return result
 
@@ -328,8 +351,11 @@ def _build_post_phase(args) -> list:
         phase.append(Folding(
             fold_count=args.folding_fold_count,
             fold_noise=args.folding_fold_noise,
+            fold_angle_range=tuple(args.folding_fold_angle_range),
+            fold_deviation=tuple(args.folding_fold_deviation),
             gradient_width=tuple(args.folding_gradient_width),
             gradient_height=tuple(args.folding_gradient_height),
+            backdrop_color=tuple(args.folding_backdrop_color),
             p=args.folding_p,
         ))
 
@@ -346,31 +372,37 @@ def _build_post_phase(args) -> list:
         ))
 
     if args.annotations_p > 0:
-        members = []
+        # Markup and Scribbles fire independently so a Markup detection failure
+        # doesn't silently produce a blank result.
         if args.annotations_markup:
-            members.append(Markup(
+            phase.append(Markup(
                 num_lines_range=tuple(args.annotations_markup_num_lines_range),
-                markup_type="random",
+                markup_length_range=tuple(args.annotations_markup_length_range),
+                markup_thickness_range=tuple(args.annotations_markup_thickness_range),
+                markup_type=args.annotations_markup_type,
                 markup_ink="random",
                 markup_color="random",
-                p=1.0,
+                p=args.annotations_p,
             ))
         if args.annotations_scribbles:
-            members.append(Scribbles(
+            phase.append(Scribbles(
                 scribbles_type="random",
                 scribbles_ink="random",
+                scribbles_size_range=tuple(args.annotations_scribbles_size_range),
                 scribbles_count_range=tuple(args.annotations_scribbles_count_range),
                 scribbles_thickness_range=tuple(args.annotations_scribbles_thickness_range),
-                p=1.0,
+                p=args.annotations_p,
             ))
-        if members:
-            phase.append(OneOf(members, p=args.annotations_p))
 
-    if args.faxify_p > 0:
+    if args.faxify_p > 0 and not args.faxify_profile_sampling:
         phase.append(Faxify(
             scale_range=tuple(args.faxify_scale_range),
             monochrome=args.faxify_monochrome,
+            monochrome_method=args.faxify_monochrome_method,
             halftone=args.faxify_halftone,
+            half_kernel_size=tuple(args.faxify_half_kernel_size),
+            angle=tuple(args.faxify_angle),
+            sigma=tuple(args.faxify_sigma),
             p=args.faxify_p,
         ))
 
@@ -597,8 +629,11 @@ def main():
     parser.add_argument("--folding_p", type=float, default=0.25)
     parser.add_argument("--folding_fold_count", type=int, default=2)
     parser.add_argument("--folding_fold_noise", type=float, default=0.01)
+    parser.add_argument("--folding_fold_angle_range", type=float, nargs=2, default=[0.0, 0.0])
+    parser.add_argument("--folding_fold_deviation", type=float, nargs=2, default=[0.0, 0.0])
     parser.add_argument("--folding_gradient_width", type=float, nargs=2, default=[0.1, 0.2])
     parser.add_argument("--folding_gradient_height", type=float, nargs=2, default=[0.01, 0.02])
+    parser.add_argument("--folding_backdrop_color", type=int, nargs=3, default=[255, 255, 255])
 
     # page_border
     parser.add_argument("--page_border_p", type=float, default=0.3)
@@ -612,8 +647,12 @@ def main():
     # annotations (OneOf: markup / scribbles)
     parser.add_argument("--annotations_p", type=float, default=0.3)
     parser.add_argument("--annotations_markup", type=int, default=1)
+    parser.add_argument("--annotations_markup_type", type=str, default="random")
     parser.add_argument("--annotations_markup_num_lines_range", type=int, nargs=2, default=[1, 4])
+    parser.add_argument("--annotations_markup_length_range", type=float, nargs=2, default=[0.5, 1.0])
+    parser.add_argument("--annotations_markup_thickness_range", type=int, nargs=2, default=[1, 3])
     parser.add_argument("--annotations_scribbles", type=int, default=1)
+    parser.add_argument("--annotations_scribbles_size_range", type=int, nargs=2, default=[400, 600])
     parser.add_argument("--annotations_scribbles_count_range", type=int, nargs=2, default=[1, 3])
     parser.add_argument("--annotations_scribbles_thickness_range", type=int, nargs=2, default=[1, 2])
 
@@ -621,7 +660,13 @@ def main():
     parser.add_argument("--faxify_p", type=float, default=0.0)
     parser.add_argument("--faxify_scale_range", type=float, nargs=2, default=[1.0, 1.5])
     parser.add_argument("--faxify_monochrome", type=int, default=-1)
+    parser.add_argument("--faxify_monochrome_method", type=str, default="random")
     parser.add_argument("--faxify_halftone", type=int, default=-1)
+    parser.add_argument("--faxify_half_kernel_size", type=int, nargs=2, default=[1, 1])
+    parser.add_argument("--faxify_angle", type=int, nargs=2, default=[0, 360])
+    parser.add_argument("--faxify_sigma", type=float, nargs=2, default=[1.0, 3.0])
+    parser.add_argument("--faxify_profile_sampling", type=int, default=0)
+    parser.add_argument("--faxify_profile_weights", type=float, nargs=3, default=[0.33, 0.34, 0.33])
 
     args = parser.parse_args()
 

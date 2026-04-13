@@ -1,0 +1,48 @@
+# high_noise: annotations
+# Markup and Scribbles fire independently (not OneOf) so a Markup detection failure
+# doesn't silently produce a blank result — Scribbles always appear as backup.
+# markup_type=highlight forces full-line horizontal streaks (no short per-word marks).
+# markup_length_range [1.0, 1.0]: always covers the full detected line width.
+# scribbles_size_range [800, 1600]: large scribbles spanning a significant page area.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise/annotations
+
+run_name: annotations
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/high_noise
+num_augmentations: 6
+dpi: 200
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+annotations_p: 1.0
+annotations_markup: 1
+annotations_markup_type: highlight
+annotations_markup_num_lines_range: [10, 25]
+annotations_markup_length_range: [1.0, 1.0]
+annotations_markup_thickness_range: [1, 4]
+annotations_scribbles: 1
+annotations_scribbles_size_range: [800, 1600]
+annotations_scribbles_count_range: [5, 12]
+annotations_scribbles_thickness_range: [1, 4]
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+low_ink_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+color_paper_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+faxify_p: 0.0

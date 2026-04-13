@@ -26,3 +26,6 @@ for config in config/dataprep/high_noise/*; do
     [ -f "$config" ] || continue
     python3 src/dataprep/augment_pdfs.py --num_augmentations 8 --config "$config" --flat
 done
+
+# actual sampling for dev set with high noise config
+python3 src/dataprep/augment_pdfs.py --num_augmentations 20 --config config/dataprep/high_noise_mix.yaml --flat
