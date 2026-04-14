@@ -5,3 +5,4 @@ opencv-python-headless
 Pillow
 pyyaml
 numpy
+fiftyone
