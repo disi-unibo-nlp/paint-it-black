@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PHI BBox Annotation Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #12121e;
+      --panel:    #1a1a2e;
+      --panel2:   #16213e;
+      --border:   #2a2a4a;
+      --accent:   #e94560;
+      --text:     #e8e8f0;
+      --muted:    #888;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: 13px;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      background: var(--panel);
+      padding: 7px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #topbar h1 { font-size: 13px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; }
+    #topbar .sep { width: 1px; height: 18px; background: var(--border); }
+    #topbar .spacer { flex: 1; }
+    #folder-name { font-size: 11px; color: var(--muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Buttons ── */
+    button {
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 4px 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+      transition: background 0.1s;
+    }
+    button:hover:not(:disabled) { background: #2a2a4e; border-color: #555; }
+    button.primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+    button.primary:hover:not(:disabled) { background: #c73050; }
+    button.success { background: #1d6e40; border-color: #27ae60; }
+    button.success:hover:not(:disabled) { background: #27ae60; }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Main layout ── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Left panel: file list ── */
+    #file-panel {
+      width: 210px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .panel-header {
+      padding: 7px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #file-list { overflow-y: auto; flex: 1; }
+    .file-item {
+      padding: 7px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-left: 3px solid transparent;
+    }
+    .file-item:hover { background: var(--panel2); }
+    .file-item.active { background: var(--panel2); border-left-color: var(--accent); }
+    .file-item .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .file-item .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .dot-pending  { background: #555; }
+    .dot-progress { background: #f39c12; }
+    .dot-done     { background: #27ae60; }
+
+    /* ── Center: PDF viewer ── */
+    #viewer {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #viewer-bar {
+      padding: 5px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    #page-info { min-width: 60px; text-align: center; font-size: 12px; color: var(--muted); }
+    #zoom-pct  { min-width: 38px; text-align: center; font-size: 12px; color: var(--muted); }
+    #viewer-bar .sep { width: 1px; height: 18px; background: var(--border); }
+    #hint { flex: 1; font-size: 11px; color: var(--muted); }
+
+    #canvas-container {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 16px;
+      background: var(--bg);
+    }
+    #canvas-wrapper {
+      position: relative;
+      display: none;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.6);
+    }
+    #pdf-canvas { display: block; }
+    #bbox-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      cursor: crosshair;
+    }
+
+    #empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: var(--muted);
+      gap: 12px;
+      text-align: center;
+    }
+    #empty-state .icon { font-size: 52px; }
+    #empty-state p { font-size: 13px; line-height: 1.6; }
+
+    /* ── Right panel: annotations ── */
+    #anno-panel {
+      width: 270px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #anno-panel-title { /* uses .panel-header */ }
+
+    /* Form */
+    #anno-form {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #anno-form.hidden { display: none; }
+    #anno-form label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+    #anno-form select,
+    #anno-form textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      margin-bottom: 8px;
+      outline: none;
+    }
+    #anno-form select:focus,
+    #anno-form textarea:focus { border-color: var(--accent); }
+    #anno-form textarea { resize: vertical; min-height: 52px; }
+    #anno-form .btn-row { display: flex; gap: 6px; }
+    #anno-form .btn-row button { flex: 1; }
+
+    /* List */
+    #anno-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .anno-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px 8px;
+      margin-bottom: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      position: relative;
+    }
+    .anno-item:hover { border-color: #3a3a6a; }
+    .anno-item.selected { border-color: var(--accent); }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .anno-text { color: #bbb; font-style: italic; word-break: break-all; }
+    .anno-coords { color: #555; font-size: 10px; margin-top: 3px; font-family: monospace; }
+    .del-btn {
+      position: absolute;
+      top: 4px; right: 4px;
+      background: none !important;
+      border: none !important;
+      color: #555;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0 3px;
+    }
+    .del-btn:hover { color: var(--accent) !important; background: none !important; }
+    #no-annos { padding: 12px; font-size: 11px; color: #555; }
+
+    /* Footer */
+    #anno-footer {
+      padding: 10px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Status bar */
+    #statusbar {
+      padding: 3px 14px;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ── BB Tuner ── */
+    #bb-tuner {
+      margin-bottom: 8px;
+      background: #0e0e1a;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px 8px;
+    }
+    #bb-tuner > .tuner-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .bb-grid {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 3px 6px;
+      align-items: center;
+    }
+    .bb-lbl {
+      font-size: 10px;
+      color: #666;
+      text-align: right;
+      font-family: monospace;
+    }
+    .bb-row {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .bb-inp {
+      flex: 1;
+      min-width: 0;
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 2px 5px;
+      font-size: 11px;
+      font-family: monospace;
+      outline: none;
+      text-align: center;
+    }
+    .bb-inp:focus { border-color: var(--accent); }
+    .bb-btn {
+      padding: 2px 5px;
+      font-size: 11px;
+      min-width: 22px;
+      line-height: 1.3;
+      flex-shrink: 0;
+    }
+    .bb-btn.coarse { opacity: 0.7; }
+
+    /* Selected anno edit panel */
+    #edit-panel {
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: none;
+    }
+    #edit-panel.visible { display: block; }
+    #edit-panel .ep-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div id="topbar">
+  <h1>PHI BBox Annotation Tool</h1>
+  <div class="sep"></div>
+  <span id="folder-name">No folder open</span>
+  <div class="spacer"></div>
+  <button id="btn-load-json" title="Load an existing annotation.json to resume a session">📋  Load JSON</button>
+  <input id="inp-load-json" type="file" accept=".json" style="display:none;">
+  <button id="btn-open" class="primary">📂  Open Folder</button>
+</div>
+
+<div id="main">
+
+  <!-- Left: file list -->
+  <div id="file-panel">
+    <div class="panel-header">PDF Files</div>
+    <div id="file-list">
+      <div style="padding:12px; color:#555; font-size:12px;">Open a folder to begin.</div>
+    </div>
+  </div>
+
+  <!-- Center: PDF viewer -->
+  <div id="viewer">
+    <div id="viewer-bar">
+      <button id="btn-prev" disabled>◀</button>
+      <span id="page-info">— / —</span>
+      <button id="btn-next" disabled>▶</button>
+      <div class="sep"></div>
+      <button id="btn-zout">−</button>
+      <span id="zoom-pct">—</span>
+      <button id="btn-zin">+</button>
+      <button id="btn-fit">Fit</button>
+      <div class="sep"></div>
+      <button id="btn-fixed" title="Toggle fixed-size box mode">📐 Fixed Box</button>
+      <span id="fixed-controls" style="display:none; align-items:center; gap:5px;">
+        <select id="fixed-label-sel" style="background:var(--bg); color:var(--text); border:1px solid var(--border);
+                border-radius:4px; padding:3px 6px; font-size:12px; outline:none; cursor:pointer;"></select>
+        <span style="font-size:11px; color:var(--muted);">W%</span>
+        <input id="inp-fw" type="number" min="1" max="100" step="1"
+               style="width:44px; background:var(--bg); color:var(--text); border:1px solid var(--border);
+                      border-radius:4px; padding:3px 5px; font-size:12px; outline:none;">
+        <span style="font-size:11px; color:var(--muted);">H%</span>
+        <input id="inp-fh" type="number" min="1" max="100" step="0.5"
+               style="width:44px; background:var(--bg); color:var(--text); border:1px solid var(--border);
+                      border-radius:4px; padding:3px 5px; font-size:12px; outline:none;">
+      </span>
+      <div class="sep"></div>
+      <span id="hint">Click and drag on the PDF to draw a bounding box</span>
+    </div>
+    <div id="canvas-container">
+      <div id="empty-state">
+        <div class="icon">📄</div>
+        <p>Open a folder containing PDF files<br>to start annotating PHI.</p>
+      </div>
+      <div id="canvas-wrapper">
+        <canvas id="pdf-canvas"></canvas>
+        <canvas id="bbox-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: annotation panel -->
+  <div id="anno-panel">
+    <div class="panel-header anno-panel-title">Annotations — page <span id="anno-page">—</span></div>
+
+    <!-- New annotation form (shown after drawing a box) -->
+    <div id="anno-form" class="hidden">
+      <label>Label</label>
+      <select id="sel-label"></select>
+      <label>Exact text span</label>
+      <textarea id="inp-text" placeholder="Type the exact text inside this box…"></textarea>
+
+      <!-- Fine-tune bounding box -->
+      <div id="bb-tuner">
+        <div class="tuner-title">Bounding Boxes &nbsp;<span style="font-weight:400;color:#444;font-size:9px;">(«/» = ±5 px &nbsp; ‹/› = ±1 px)</span></div>
+        <!-- Chip row: one chip per bbox, click to select for tuning -->
+        <div id="bb-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
+        <button id="btn-add-bbox" style="width:100%;margin-bottom:6px;font-size:11px;">＋ Add another box</button>
+        <div class="bb-grid">
+          <span class="bb-lbl">top</span>
+          <div class="bb-row">
+            <button class="bb-btn coarse" data-field="ymin" data-d="-5" title="-5px">«</button>
+            <button class="bb-btn"        data-field="ymin" data-d="-1" title="-1px">‹</button>
+            <input class="bb-inp" id="bb-ymin" type="number" step="0.0001" min="0" max="1">
+            <button class="bb-btn"        data-field="ymin" data-d="+1" title="+1px">›</button>
+            <button class="bb-btn coarse" data-field="ymin" data-d="+5" title="+5px">»</button>
+          </div>
+          <span class="bb-lbl">left</span>
+          <div class="bb-row">
+            <button class="bb-btn coarse" data-field="xmin" data-d="-5">«</button>
+            <button class="bb-btn"        data-field="xmin" data-d="-1">‹</button>
+            <input class="bb-inp" id="bb-xmin" type="number" step="0.0001" min="0" max="1">
+            <button class="bb-btn"        data-field="xmin" data-d="+1">›</button>
+            <button class="bb-btn coarse" data-field="xmin" data-d="+5">»</button>
+          </div>
+          <span class="bb-lbl">bottom</span>
+          <div class="bb-row">
+            <button class="bb-btn coarse" data-field="ymax" data-d="-5">«</button>
+            <button class="bb-btn"        data-field="ymax" data-d="-1">‹</button>
+            <input class="bb-inp" id="bb-ymax" type="number" step="0.0001" min="0" max="1">
+            <button class="bb-btn"        data-field="ymax" data-d="+1">›</button>
+            <button class="bb-btn coarse" data-field="ymax" data-d="+5">»</button>
+          </div>
+          <span class="bb-lbl">right</span>
+          <div class="bb-row">
+            <button class="bb-btn coarse" data-field="xmax" data-d="-5">«</button>
+            <button class="bb-btn"        data-field="xmax" data-d="-1">‹</button>
+            <input class="bb-inp" id="bb-xmax" type="number" step="0.0001" min="0" max="1">
+            <button class="bb-btn"        data-field="xmax" data-d="+1">›</button>
+            <button class="bb-btn coarse" data-field="xmax" data-d="+5">»</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-save-anno" class="primary">Save</button>
+        <button id="btn-cancel-anno">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Edit-box panel for a selected (already saved) annotation -->
+    <div id="edit-panel">
+      <div class="ep-title">Edit Annotation &nbsp;<span style="font-weight:400;color:#444;font-size:9px;">(«/» = ±5 px &nbsp; ‹/› = ±1 px)</span></div>
+
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:4px;">Label</label>
+      <select id="ep-label-sel" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:5px 8px;border-radius:4px;font-size:12px;font-family:inherit;margin-bottom:8px;outline:none;"></select>
+
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:4px;">Exact text span</label>
+      <textarea id="ep-text" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:5px 8px;border-radius:4px;font-size:12px;font-family:inherit;margin-bottom:8px;outline:none;resize:vertical;min-height:46px;"></textarea>
+
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:4px;">Bounding Boxes</label>
+      <div id="ep-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;"></div>
+      <button id="btn-ep-add-bbox" style="width:100%;margin-bottom:6px;font-size:11px;">＋ Add another box</button>
+
+      <div class="bb-grid">
+        <span class="bb-lbl">top</span>
+        <div class="bb-row">
+          <button class="bb-btn coarse ep-btn" data-field="ymin" data-d="-5">«</button>
+          <button class="bb-btn        ep-btn" data-field="ymin" data-d="-1">‹</button>
+          <input class="bb-inp" id="ep-ymin" type="number" step="0.0001" min="0" max="1">
+          <button class="bb-btn        ep-btn" data-field="ymin" data-d="+1">›</button>
+          <button class="bb-btn coarse ep-btn" data-field="ymin" data-d="+5">»</button>
+        </div>
+        <span class="bb-lbl">left</span>
+        <div class="bb-row">
+          <button class="bb-btn coarse ep-btn" data-field="xmin" data-d="-5">«</button>
+          <button class="bb-btn        ep-btn" data-field="xmin" data-d="-1">‹</button>
+          <input class="bb-inp" id="ep-xmin" type="number" step="0.0001" min="0" max="1">
+          <button class="bb-btn        ep-btn" data-field="xmin" data-d="+1">›</button>
+          <button class="bb-btn coarse ep-btn" data-field="xmin" data-d="+5">»</button>
+        </div>
+        <span class="bb-lbl">bottom</span>
+        <div class="bb-row">
+          <button class="bb-btn coarse ep-btn" data-field="ymax" data-d="-5">«</button>
+          <button class="bb-btn        ep-btn" data-field="ymax" data-d="-1">‹</button>
+          <input class="bb-inp" id="ep-ymax" type="number" step="0.0001" min="0" max="1">
+          <button class="bb-btn        ep-btn" data-field="ymax" data-d="+1">›</button>
+          <button class="bb-btn coarse ep-btn" data-field="ymax" data-d="+5">»</button>
+        </div>
+        <span class="bb-lbl">right</span>
+        <div class="bb-row">
+          <button class="bb-btn coarse ep-btn" data-field="xmax" data-d="-5">«</button>
+          <button class="bb-btn        ep-btn" data-field="xmax" data-d="-1">‹</button>
+          <input class="bb-inp" id="ep-xmax" type="number" step="0.0001" min="0" max="1">
+          <button class="bb-btn        ep-btn" data-field="xmax" data-d="+1">›</button>
+          <button class="bb-btn coarse ep-btn" data-field="xmax" data-d="+5">»</button>
+        </div>
+      </div>
+      <div style="margin-top:6px; display:flex; gap:5px;">
+        <button id="btn-save-edit" class="primary" style="flex:1; font-size:11px;">Save Changes</button>
+        <button id="btn-cancel-edit" style="font-size:11px;">✕</button>
+      </div>
+    </div>
+
+    <!-- Annotation list for current page -->
+    <div id="anno-list">
+      <div id="no-annos">No annotations on this page.</div>
+    </div>
+
+    <div id="anno-footer">
+      <button id="btn-done" class="success">✓  Mark Report Complete &amp; Save</button>
+      <button id="btn-export">↓  Download annotation.json</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="statusbar">Ready. Click "Open Folder" to load a PDF folder.</div>
+
+<!-- PDF.js -->
+<script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Config
+// ─────────────────────────────────────────────────────────────────────────────
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  LABEL CONFIGURATION                                                    ║
+// ║  ► This is the only place you need to edit to add/remove labels.        ║
+// ║                                                                          ║
+// ║  Name format rules:                                                      ║
+// ║    PARENT:SUBLABEL  — grouped label   (no spaces → use underscores)     ║
+// ║    STANDALONE       — no colon        (no spaces → use underscores)     ║
+// ║                                                                          ║
+// ║  Fields:                                                                 ║
+// ║    name   – stored value in JSON output                                  ║
+// ║    color  – hex color for the bounding box and badge                     ║
+// ║    fw/fh  – default fixed-box size as fraction of page width/height      ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+const LABELS = [
+
+  // ── NAME ──────────────────────────────────────────────────────────────────
+  { name: 'NAME:PATIENT',               color: '#e74c3c', fw: 0.18, fh: 0.024 },
+  { name: 'NAME:DOCTOR',                color: '#e74c3c', fw: 0.18, fh: 0.024 },
+  { name: 'NAME:ASSOCIATE',             color: '#e74c3c', fw: 0.18, fh: 0.024 },
+  { name: 'NAME:CLINIC',                color: '#e74c3c', fw: 0.22, fh: 0.024 },
+
+  // ── DATE OF BIRTH ─────────────────────────────────────────────────────────
+  { name: 'DATE_OF_BIRTH:UNDER_89',     color: '#e67e22', fw: 0.13, fh: 0.024 },
+  { name: 'DATE_OF_BIRTH:OVER_89',      color: '#e67e22', fw: 0.13, fh: 0.024 },
+
+  // ── DATE (standalone) ─────────────────────────────────────────────────────
+  { name: 'DATE',                        color: '#ff9800', fw: 0.11, fh: 0.024 },
+
+  // ── AGE ───────────────────────────────────────────────────────────────────
+  { name: 'AGE:UNDER_89',               color: '#f1c40f', fw: 0.05, fh: 0.024 },
+  { name: 'AGE:OVER_89',                color: '#f1c40f', fw: 0.05, fh: 0.024 },
+
+  // ── ID ────────────────────────────────────────────────────────────────────
+  { name: 'ID:PATIENT_ID',              color: '#9b59b6', fw: 0.13, fh: 0.024 },
+  { name: 'ID:DOCUMENT_ID',             color: '#9b59b6', fw: 0.11, fh: 0.024 },
+  { name: 'ID:SPECIMEN_ID',             color: '#9b59b6', fw: 0.11, fh: 0.024 },
+  { name: 'ID:DOCTOR_ID',               color: '#9b59b6', fw: 0.10, fh: 0.024 },
+  { name: 'ID:DEVICE_ID',               color: '#9b59b6', fw: 0.10, fh: 0.024 },
+
+  // ── CONTACT ───────────────────────────────────────────────────────────────
+  { name: 'CONTACT:PATIENT',            color: '#e91e63', fw: 0.28, fh: 0.024 },
+  { name: 'CONTACT:DOCTOR',             color: '#e91e63', fw: 0.28, fh: 0.024 },
+  { name: 'CONTACT:ASSOCIATE',          color: '#e91e63', fw: 0.28, fh: 0.024 },
+  { name: 'CONTACT:CLINIC',             color: '#e91e63', fw: 0.28, fh: 0.024 },
+
+  // ── ADDRESS ───────────────────────────────────────────────────────────────
+  { name: 'ADDRESS:PATIENT',            color: '#3498db', fw: 0.28, fh: 0.024 },
+  { name: 'ADDRESS:CLINIC',             color: '#3498db', fw: 0.28, fh: 0.024 },
+
+]; // ◄── end of LABELS — add new entries above this line
+
+const LABEL_COLOR = Object.fromEntries(LABELS.map(l => [l.name, l.color]));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+
+const S = {
+  dirHandle:     null,
+  annoFileHandle: null,
+  pdfFiles:      [],        // [{ name, handle }]
+  fileIdx:       -1,
+  pdfDoc:        null,
+  page:          1,
+  totalPages:    0,
+  scale:         1.5,
+  pdfW:          0,         // natural page width  (pt at scale=1)
+  pdfH:          0,         // natural page height (pt at scale=1)
+
+  // annotation store: { files: { fname: { status, pages: { "N": [anno] } } } }
+  store:         { files: {} },
+
+  // drawing
+  drawing:       false,
+  startX:        0,
+  startY:        0,
+  liveBox:       null,      // { x1,y1,x2,y2 } canvas px, while mouse is down
+
+  // pending: box drawn but not labelled yet
+  // shape: { id, bboxes: [[ymin,xmin,ymax,xmax], ...], activeBboxIdx, label, text, ... }
+  pending:       null,
+
+  // ui
+  selectedId:    null,
+
+  // fixed-size box mode
+  fixedMode:     false,
+
+  // append-box mode: true while waiting for user to draw an extra bbox
+  // for an in-progress annotation (pending or a saved one)
+  appendMode:    false,
+  appendTarget:  null,   // 'pending' | saved-annotation-id
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOM shortcuts
+// ─────────────────────────────────────────────────────────────────────────────
+
+const $ = id => document.getElementById(id);
+const pdfCanvas  = $('pdf-canvas');
+const bboxCanvas = $('bbox-canvas');
+const pdfCtx     = pdfCanvas.getContext('2d');
+const bboxCtx    = bboxCanvas.getContext('2d');
+
+function setStatus(msg) { $('statusbar').textContent = msg; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fixed-box mode
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Per-label preset sizes (mutable at runtime)
+const LABEL_PRESET = Object.fromEntries(LABELS.map(l => [l.name, { fw: l.fw, fh: l.fh }]));
+
+function activeFixedLabel() {
+  const sel = $('fixed-label-sel');
+  return sel ? sel.value : LABELS[0].name;
+}
+
+function activePreset() {
+  return LABEL_PRESET[activeFixedLabel()] || { fw: 0.15, fh: 0.03 };
+}
+
+function syncPresetInputs() {
+  const p = activePreset();
+  $('inp-fw').value = Math.round(p.fw * 1000) / 10;
+  $('inp-fh').value = Math.round(p.fh * 1000) / 10;
+  const color = LABEL_COLOR[activeFixedLabel()] || '#888';
+  $('fixed-label-sel').style.borderColor = color;
+  $('fixed-label-sel').style.boxShadow   = `0 0 0 2px ${color}44`;
+}
+
+function updateFixedBtn() {
+  const btn  = $('btn-fixed');
+  const ctrl = $('fixed-controls');
+  if (S.fixedMode) {
+    btn.style.background    = 'var(--accent)';
+    btn.style.borderColor   = 'var(--accent)';
+    btn.style.fontWeight    = '700';
+    ctrl.style.display      = 'flex';
+    syncPresetInputs();
+  } else {
+    btn.style.background    = '';
+    btn.style.borderColor   = '';
+    btn.style.fontWeight    = '';
+    ctrl.style.display      = 'none';
+  }
+  updateHint();
+}
+
+setTimeout(() => {
+  // Populate fixed-label selector (grouped)
+  const fixedSel = $('fixed-label-sel');
+  populateGroupedSelect(fixedSel);
+  syncPresetInputs();
+
+  fixedSel.addEventListener('change', syncPresetInputs);
+
+  $('inp-fw').addEventListener('input', () => {
+    LABEL_PRESET[activeFixedLabel()].fw = Math.max(0.01, parseFloat($('inp-fw').value) / 100);
+  });
+  $('inp-fh').addEventListener('input', () => {
+    LABEL_PRESET[activeFixedLabel()].fh = Math.max(0.005, parseFloat($('inp-fh').value) / 100);
+  });
+
+  $('btn-fixed').addEventListener('click', () => {
+    S.fixedMode = !S.fixedMode;
+    updateFixedBtn();
+  });
+}, 0);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Annotation store helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function currentFileName() {
+  return S.fileIdx >= 0 ? S.pdfFiles[S.fileIdx].name : null;
+}
+
+function fileEntry(fname) {
+  return S.store.files[fname] || null;
+}
+
+function pageAnnos(fname, pageNum) {
+  const fe = fileEntry(fname);
+  if (!fe) return [];
+  return fe.pages[String(pageNum)] || [];
+}
+
+function setPageAnnos(fname, pageNum, list) {
+  S.store.files[fname].pages[String(pageNum)] = list;
+}
+
+function currentAnnos() {
+  const f = currentFileName();
+  return f ? pageAnnos(f, S.page) : [];
+}
+
+function setCurrentAnnos(list) {
+  setPageAnnos(currentFileName(), S.page, list);
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coord conversion: canvas px ↔ normalised [0,1]
+// bbox stored as [ymin, xmin, ymax, xmax] (normalised)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function toNorm(cx1, cy1, cx2, cy2) {
+  const w = bboxCanvas.width, h = bboxCanvas.height;
+  return [cy1 / h, cx1 / w, cy2 / h, cx2 / w];  // [ymin, xmin, ymax, xmax]
+}
+
+function toPx(bbox) {
+  const w = bboxCanvas.width, h = bboxCanvas.height;
+  const [ymin, xmin, ymax, xmax] = bbox;
+  return { x1: xmin * w, y1: ymin * h, x2: xmax * w, y2: ymax * h };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// File System Access API
+// ─────────────────────────────────────────────────────────────────────────────
+
+$('btn-open').addEventListener('click', async () => {
+  try {
+    const h = await window.showDirectoryPicker({ mode: 'readwrite' });
+    S.dirHandle = h;
+    $('folder-name').textContent = h.name;
+    await loadFolder(h);
+  } catch (e) {
+    if (e.name !== 'AbortError') setStatus('Error: ' + e.message);
+  }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Load JSON  (resume a session from a previously exported annotation.json)
+// ─────────────────────────────────────────────────────────────────────────────
+
+});
+
+$('btn-load-json').addEventListener('click', () => $('inp-load-json').click());
+
+$('inp-load-json').addEventListener('change', async () => {
+  const file = $('inp-load-json').files[0];
+  if (!file) return;
+  try {
+    const text   = await file.text();
+    const loaded = JSON.parse(text);
+    // Accept both flat {fname: {...}} and wrapped {files: {fname: {...}}} formats
+    const incoming = loaded.files ? loaded : { files: loaded };
+    normalizeBboxesInStore(incoming);
+
+    // Merge into the current store: incoming annotations win over empty entries,
+    // but existing local annotations are preserved if the incoming file has none.
+    for (const [fname, entry] of Object.entries(incoming.files)) {
+      if (!S.store.files[fname]) {
+        S.store.files[fname] = entry;
+      } else {
+        // Merge page-by-page: only overwrite pages that exist in the loaded file
+        for (const [pageNum, annos] of Object.entries(entry.pages || {})) {
+          if (annos.length > 0)
+            S.store.files[fname].pages[pageNum] = annos;
+        }
+        // Carry over status if it's more advanced than current
+        const rank = { pending: 0, in_progress: 1, completed: 2 };
+        if ((rank[entry.status] || 0) > (rank[S.store.files[fname].status] || 0))
+          S.store.files[fname].status = entry.status;
+      }
+    }
+
+    // Refresh UI
+    renderFileList();
+    if (S.fileIdx >= 0) { renderAnnoList(); drawOverlay(); }
+    setStatus(`Loaded "${file.name}" — ${Object.keys(incoming.files).length} file entry(ies) merged.`);
+  } catch (e) {
+    setStatus('Failed to load JSON: ' + e.message);
+  }
+  // Reset so the same file can be reloaded if needed
+  $('inp-load-json').value = '';
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Backward-compat: migrate old single-bbox format → bboxes array in-place
+// ─────────────────────────────────────────────────────────────────────────────
+
+function normalizeBboxesInStore(store) {
+  for (const fileEntry of Object.values(store.files)) {
+    for (const pageAnnos of Object.values(fileEntry.pages || {})) {
+      for (const a of pageAnnos) {
+        if (!a.bboxes) {
+          a.bboxes = [a.bbox];
+          delete a.bbox;
+        }
+      }
+    }
+  }
+}
+
+async function loadFolder(dir) {
+  S.pdfFiles = [];
+  for await (const [name, handle] of dir.entries()) {
+    if (handle.kind === 'file' && name.toLowerCase().endsWith('.pdf'))
+      S.pdfFiles.push({ name, handle });
+  }
+  S.pdfFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Load existing annotation.json if present
+  try {
+    const fh = await dir.getFileHandle('annotation.json');
+    S.annoFileHandle = fh;
+    const raw = await (await fh.getFile()).text();
+    const loaded = JSON.parse(raw);
+    S.store = loaded.files ? loaded : { files: loaded };
+    normalizeBboxesInStore(S.store);
+    setStatus(`Loaded annotation.json (${Object.keys(S.store.files).length} entries).`);
+  } catch (_) {
+    S.store = { files: {} };
+    S.annoFileHandle = null;
+    setStatus(`Found ${S.pdfFiles.length} PDF file(s). No existing annotation.json.`);
+  }
+
+  // Ensure every PDF has an entry
+  for (const f of S.pdfFiles) {
+    if (!S.store.files[f.name])
+      S.store.files[f.name] = { status: 'pending', pages: {} };
+  }
+
+  renderFileList();
+  if (S.pdfFiles.length > 0) await openFile(0);
+}
+
+async function persistStore() {
+  if (!S.dirHandle) return;
+  S.store.updated = new Date().toISOString();
+  if (!S.store.created) S.store.created = S.store.updated;
+  try {
+    if (!S.annoFileHandle)
+      S.annoFileHandle = await S.dirHandle.getFileHandle('annotation.json', { create: true });
+    const w = await S.annoFileHandle.createWritable();
+    await w.write(JSON.stringify(S.store, null, 2));
+    await w.close();
+    setStatus('Saved annotation.json ✓');
+  } catch (e) {
+    setStatus('Save error: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// File list UI
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderFileList() {
+  const list = $('file-list');
+  list.innerHTML = '';
+  S.pdfFiles.forEach((f, i) => {
+    const fe = S.store.files[f.name] || { status: 'pending' };
+    const dotCls = fe.status === 'completed' ? 'dot-done'
+                 : fe.status === 'in_progress' ? 'dot-progress'
+                 : 'dot-pending';
+    const el = document.createElement('div');
+    el.className = 'file-item' + (i === S.fileIdx ? ' active' : '');
+    el.innerHTML = `<div class="dot ${dotCls}"></div><div class="fname" title="${f.name}">${f.name}</div>`;
+    el.addEventListener('click', () => openFile(i));
+    list.appendChild(el);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Open a PDF file
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function openFile(idx) {
+  S.fileIdx     = idx;
+  S.page        = 1;
+  S.selectedId  = null;
+  S.pending     = null;
+  S.liveBox     = null;
+  S.drawing     = false;
+  hideForm();
+
+  const f = S.pdfFiles[idx];
+  setStatus(`Loading ${f.name}…`);
+
+  try {
+    const buf = await (await f.handle.getFile()).arrayBuffer();
+    S.pdfDoc      = await pdfjsLib.getDocument({ data: buf }).promise;
+    S.totalPages  = S.pdfDoc.numPages;
+
+    if (S.store.files[f.name].status === 'pending')
+      S.store.files[f.name].status = 'in_progress';
+
+    renderFileList();
+    await renderPage();
+    renderAnnoList();
+    setStatus(`Opened ${f.name} — ${S.totalPages} page(s).`);
+  } catch (e) {
+    setStatus('Error loading PDF: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PDF rendering
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function renderPage() {
+  if (!S.pdfDoc) return;
+
+  const pg = await S.pdfDoc.getPage(S.page);
+  const vp = pg.getViewport({ scale: S.scale });
+
+  // Natural dimensions (scale=1)
+  const vp1 = pg.getViewport({ scale: 1 });
+  S.pdfW = vp1.width;
+  S.pdfH = vp1.height;
+
+  pdfCanvas.width  = bboxCanvas.width  = vp.width;
+  pdfCanvas.height = bboxCanvas.height = vp.height;
+
+  $('canvas-wrapper').style.display = 'inline-block';
+  $('empty-state').style.display    = 'none';
+
+  await pg.render({ canvasContext: pdfCtx, viewport: vp }).promise;
+
+  $('page-info').textContent = `${S.page} / ${S.totalPages}`;
+  $('anno-page').textContent = S.page;
+  $('zoom-pct').textContent  = Math.round(S.scale * 100) + '%';
+  $('btn-prev').disabled     = S.page <= 1;
+  $('btn-next').disabled     = S.page >= S.totalPages;
+
+  drawOverlay();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigation buttons
+// ─────────────────────────────────────────────────────────────────────────────
+
+$('btn-prev').addEventListener('click', async () => {
+  if (S.page > 1) { S.page--; await pageSwitch(); }
+});
+$('btn-next').addEventListener('click', async () => {
+  if (S.page < S.totalPages) { S.page++; await pageSwitch(); }
+});
+$('btn-zin').addEventListener('click', async () => {
+  S.scale = Math.min(S.scale + 0.25, 4); await renderPage();
+});
+$('btn-zout').addEventListener('click', async () => {
+  S.scale = Math.max(S.scale - 0.25, 0.5); await renderPage();
+});
+$('btn-fit').addEventListener('click', async () => {
+  if (!S.pdfDoc) return;
+  const pg = await S.pdfDoc.getPage(S.page);
+  const avail = $('canvas-container').clientWidth - 40;
+  const natural = pg.getViewport({ scale: 1 }).width;
+  S.scale = Math.max(0.5, Math.min(avail / natural, 4));
+  await renderPage();
+});
+
+async function pageSwitch() {
+  S.selectedId   = null;
+  S.pending      = null;
+  S.liveBox      = null;
+  S.drawing      = false;
+  S.appendMode   = false;
+  S.appendTarget = null;
+  hideForm();
+  closeEditPanel();
+  updateHint();
+  await renderPage();
+  renderAnnoList();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Canvas mouse interaction
+// ─────────────────────────────────────────────────────────────────────────────
+
+bboxCanvas.addEventListener('mousedown', e => {
+  // In append mode we must allow drawing even while S.pending exists;
+  // skip the early-return guard and the annotation hit-test.
+  if (S.pending && !S.appendMode) return; // wait for form
+
+  const { mx, my } = mousePos(e);
+
+  // Hit test existing annotations — skip when appending a new box
+  if (!S.appendMode) {
+    const annos = currentAnnos();
+    for (let i = annos.length - 1; i >= 0; i--) {
+      const bboxes = annos[i].bboxes ?? [annos[i].bbox];
+      for (const bbox of bboxes) {
+        const p = toPx(bbox);
+        if (mx >= p.x1 && mx <= p.x2 && my >= p.y1 && my <= p.y2) {
+          S.selectedId = annos[i].id;
+          openEditPanel(annos[i]);
+          renderAnnoList();
+          drawOverlay();
+          // Scroll the matching list item into view
+          const item = document.querySelector(`.anno-item[data-id="${annos[i].id}"]`);
+          if (item) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          return;
+        }
+      }
+    }
+  }
+
+  // Start draw
+  S.drawing = true;
+  S.startX  = mx;
+  S.startY  = my;
+  S.liveBox = null;
+
+  // In fixed mode, show the ghost box immediately on mousedown
+  if (S.fixedMode) {
+    const p = activePreset();
+    const w = bboxCanvas.width, h = bboxCanvas.height;
+    const hw = (p.fw * w) / 2, hh = (p.fh * h) / 2;
+    S.liveBox = { x1: mx - hw, y1: my - hh, x2: mx + hw, y2: my + hh };
+    drawOverlay();
+  }
+});
+
+bboxCanvas.addEventListener('mousemove', e => {
+  if (!S.drawing) return;
+  const { mx, my } = mousePos(e);
+
+  if (S.fixedMode) {
+    // Ghost follows cursor centered on pointer
+    const p = activePreset();
+    const w = bboxCanvas.width, h = bboxCanvas.height;
+    const hw = (p.fw * w) / 2, hh = (p.fh * h) / 2;
+    S.liveBox = { x1: mx - hw, y1: my - hh, x2: mx + hw, y2: my + hh };
+  } else {
+    S.liveBox = {
+      x1: Math.min(S.startX, mx), y1: Math.min(S.startY, my),
+      x2: Math.max(S.startX, mx), y2: Math.max(S.startY, my),
+    };
+  }
+  drawOverlay();
+});
+
+bboxCanvas.addEventListener('mouseup', e => {
+  if (!S.drawing) return;
+  S.drawing = false;
+
+  const { mx, my } = mousePos(e);
+  let x1, y1, x2, y2;
+
+  if (S.fixedMode) {
+    const preset = activePreset();
+    const w = bboxCanvas.width, h = bboxCanvas.height;
+    const hw = (preset.fw * w) / 2, hh = (preset.fh * h) / 2;
+    x1 = Math.max(0, mx - hw);
+    y1 = Math.max(0, my - hh);
+    x2 = Math.min(w, mx + hw);
+    y2 = Math.min(h, my + hh);
+  } else {
+    x1 = Math.min(S.startX, mx); y1 = Math.min(S.startY, my);
+    x2 = Math.max(S.startX, mx); y2 = Math.max(S.startY, my);
+    if (x2 - x1 < 6 || y2 - y1 < 6) { S.liveBox = null; drawOverlay(); return; }
+  }
+
+  S.liveBox = null;
+  const newBbox = toNorm(x1, y1, x2, y2);
+
+  // ── Append-box mode: add to an existing pending or saved annotation ──
+  if (S.appendMode) {
+    S.appendMode  = false;
+    const target  = S.appendTarget;
+    S.appendTarget = null;
+    updateHint();
+    bboxCanvas.style.cursor = S.fixedMode ? 'cell' : 'crosshair';
+
+    if (target === 'pending' && S.pending) {
+      S.pending.bboxes.push(newBbox);
+      S.pending.activeBboxIdx = S.pending.bboxes.length - 1;
+      renderBBChips();
+      syncBBInputs();
+      showForm();
+    } else if (target) {
+      const annos = currentAnnos();
+      const a = annos.find(x => x.id === target);
+      if (a) {
+        a.bboxes.push(newBbox);
+        setCurrentAnnos(annos);
+        S.epActiveBboxIdx = a.bboxes.length - 1;
+        openEditPanel(a);
+        renderAnnoList();
+        persistStore();
+      }
+    }
+    drawOverlay();
+    return;
+  }
+
+  // ── Normal mode: create a new pending annotation ──
+  S.pending = {
+    id:           genId(),
+    bboxes:       [newBbox],
+    activeBboxIdx: 0,
+    label:        S.fixedMode ? activeFixedLabel() : LABELS[0].name,
+    text:         '',
+    page_width:   Math.round(S.pdfW),
+    page_height:  Math.round(S.pdfH),
+    created:      new Date().toISOString(),
+  };
+
+  drawOverlay();
+  showForm();
+});
+
+bboxCanvas.addEventListener('mouseleave', () => {
+  if (S.drawing) { S.drawing = false; S.liveBox = null; drawOverlay(); }
+});
+
+function mousePos(e) {
+  const r = bboxCanvas.getBoundingClientRect();
+  return { mx: e.clientX - r.left, my: e.clientY - r.top };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Overlay drawing
+// ─────────────────────────────────────────────────────────────────────────────
+
+function drawOverlay() {
+  bboxCtx.clearRect(0, 0, bboxCanvas.width, bboxCanvas.height);
+
+  // Saved annotations
+  for (const a of currentAnnos()) {
+    const bboxes = a.bboxes ?? [a.bbox];   // backward-compat with old single bbox
+    const color  = LABEL_COLOR[a.label] || '#888';
+    const sel    = a.id === S.selectedId;
+
+    // Draw all boxes belonging to this annotation
+    let topmostP = null;
+    for (let bi = 0; bi < bboxes.length; bi++) {
+      const p = toPx(bboxes[bi]);
+      if (!topmostP || p.y1 < topmostP.y1) topmostP = p;
+
+      bboxCtx.fillStyle = color + '1e';
+      bboxCtx.fillRect(p.x1, p.y1, p.x2 - p.x1, p.y2 - p.y1);
+
+      bboxCtx.strokeStyle = color;
+      bboxCtx.lineWidth   = sel ? 2.5 : 1.5;
+      // Extra boxes of the same annotation use a longer dash to distinguish them
+      bboxCtx.setLineDash(sel ? [6, 3] : (bboxes.length > 1 && bi > 0 ? [3, 3] : []));
+      bboxCtx.strokeRect(p.x1, p.y1, p.x2 - p.x1, p.y2 - p.y1);
+      bboxCtx.setLineDash([]);
+    }
+
+    // Single label chip above the topmost box
+    bboxCtx.font = 'bold 10px sans-serif';
+    const shortLabel = a.label.length > 14 ? a.label.slice(0, 13) + '…' : a.label;
+    const boxCount   = bboxes.length > 1 ? ` ×${bboxes.length}` : '';
+    const chipText   = shortLabel + boxCount;
+    const tw = bboxCtx.measureText(chipText).width + 8;
+    const th = 14;
+    bboxCtx.fillStyle = color;
+    bboxCtx.fillRect(topmostP.x1, Math.max(0, topmostP.y1 - th), tw, th);
+    bboxCtx.fillStyle = '#fff';
+    bboxCtx.fillText(chipText, topmostP.x1 + 4, Math.max(th, topmostP.y1) - 3);
+  }
+
+  // Pending boxes (drawn, awaiting label/save)
+  if (S.pending) {
+    const pendingColor = LABEL_COLOR[selLabel.value] || '#e94560';
+    for (let bi = 0; bi < S.pending.bboxes.length; bi++) {
+      const p       = toPx(S.pending.bboxes[bi]);
+      const isActive = bi === S.pending.activeBboxIdx;
+      bboxCtx.fillStyle   = pendingColor + (isActive ? '22' : '14');
+      bboxCtx.fillRect(p.x1, p.y1, p.x2 - p.x1, p.y2 - p.y1);
+      bboxCtx.strokeStyle = pendingColor;
+      bboxCtx.lineWidth   = isActive ? 2.5 : 1.5;
+      bboxCtx.setLineDash(isActive ? [6, 3] : [3, 3]);
+      bboxCtx.strokeRect(p.x1, p.y1, p.x2 - p.x1, p.y2 - p.y1);
+      bboxCtx.setLineDash([]);
+      // Number label on each pending box
+      bboxCtx.font      = 'bold 10px sans-serif';
+      bboxCtx.fillStyle = pendingColor;
+      bboxCtx.fillText(`Box ${bi + 1}`, p.x1 + 3, p.y1 + 11);
+    }
+  }
+
+  // Live drawing box
+  if (S.liveBox) {
+    const b = S.liveBox;
+    bboxCtx.fillStyle   = 'rgba(233,69,96,0.08)';
+    bboxCtx.fillRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
+    bboxCtx.strokeStyle = 'rgba(0,0,0,0.55)';
+    bboxCtx.lineWidth   = 3.5;
+    bboxCtx.setLineDash([]);
+    bboxCtx.strokeRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
+    bboxCtx.strokeStyle = '#e94560';
+    bboxCtx.lineWidth   = 2;
+    bboxCtx.setLineDash([6, 3]);
+    bboxCtx.strokeRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
+    bboxCtx.setLineDash([]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Annotation form
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Grouped <select> builder ──────────────────────────────────────────────────
+// Groups labels by the part before ':'. Labels without ':' form their own
+// single-item group (displayed as a standalone option, no optgroup wrapper).
+function populateGroupedSelect(selectEl) {
+  selectEl.innerHTML = '';
+
+  // Build group map preserving insertion order
+  const groups = new Map();
+  for (const l of LABELS) {
+    const colon  = l.name.indexOf(':');
+    const parent = colon >= 0 ? l.name.slice(0, colon) : null;
+    const key    = parent || l.name;
+    if (!groups.has(key)) groups.set(key, { parent, items: [] });
+    groups.get(key).items.push(l);
+  }
+
+  for (const [key, g] of groups) {
+    if (g.parent) {
+      // Grouped: wrap in <optgroup>
+      const og = document.createElement('optgroup');
+      og.label = g.parent;
+      for (const l of g.items) {
+        const opt = document.createElement('option');
+        opt.value       = l.name;
+        opt.textContent = l.name.slice(g.parent.length + 1); // show only sublabel
+        og.appendChild(opt);
+      }
+      selectEl.appendChild(og);
+    } else {
+      // Standalone label — plain <option>
+      const opt = document.createElement('option');
+      opt.value       = g.items[0].name;
+      opt.textContent = g.items[0].name;
+      selectEl.appendChild(opt);
+    }
+  }
+}
+
+// Populate annotation-form label <select>
+const selLabel = $('sel-label');
+populateGroupedSelect(selLabel);
+selLabel.addEventListener('change', syncSelectColor);
+
+function syncSelectColor() {
+  const c = LABEL_COLOR[selLabel.value] || '#888';
+  selLabel.style.borderColor = c;
+  selLabel.style.boxShadow   = `0 0 0 2px ${c}44`;
+}
+syncSelectColor();
+
+function showForm() {
+  $('anno-form').classList.remove('hidden');
+  $('inp-text').value = '';
+  if (S.fixedMode) selLabel.value = activeFixedLabel();
+  syncSelectColor();
+  renderBBChips();
+  syncBBInputs();
+  $('inp-text').focus();
+}
+
+function hideForm() {
+  $('anno-form').classList.add('hidden');
+  S.pending = null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BB Tuner  (pending box — shown inside anno-form)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BB_FIELDS = ['ymin', 'xmin', 'ymax', 'xmax'];
+const BB_IDX    = { ymin: 0, xmin: 1, ymax: 2, xmax: 3 };
+
+// Render the numbered chip row for the pending annotation's bboxes
+function renderBBChips() {
+  const container = $('bb-chips');
+  container.innerHTML = '';
+  if (!S.pending) return;
+  S.pending.bboxes.forEach((_, bi) => {
+    const chip = document.createElement('button');
+    chip.textContent  = `Box ${bi + 1}`;
+    chip.className    = 'bb-btn';
+    chip.style.cssText = bi === S.pending.activeBboxIdx
+      ? 'background:var(--accent);border-color:var(--accent);color:#fff;'
+      : '';
+    chip.addEventListener('click', () => {
+      S.pending.activeBboxIdx = bi;
+      renderBBChips();
+      syncBBInputs();
+      drawOverlay();
+    });
+    // Delete button — only if more than one box
+    if (S.pending.bboxes.length > 1) {
+      const del = document.createElement('span');
+      del.textContent = ' ×';
+      del.style.cssText = 'cursor:pointer;opacity:0.6;';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        S.pending.bboxes.splice(bi, 1);
+        S.pending.activeBboxIdx = Math.min(S.pending.activeBboxIdx, S.pending.bboxes.length - 1);
+        renderBBChips();
+        syncBBInputs();
+        drawOverlay();
+      });
+      chip.appendChild(del);
+    }
+    container.appendChild(chip);
+  });
+}
+
+function syncBBInputs() {
+  if (!S.pending) return;
+  const bbox = S.pending.bboxes[S.pending.activeBboxIdx];
+  if (!bbox) return;
+  const [ymin, xmin, ymax, xmax] = bbox;
+  $('bb-ymin').value = ymin.toFixed(4);
+  $('bb-xmin').value = xmin.toFixed(4);
+  $('bb-ymax').value = ymax.toFixed(4);
+  $('bb-xmax').value = xmax.toFixed(4);
+}
+
+function nudgePending(field, px) {
+  if (!S.pending) return;
+  const bbox = S.pending.bboxes[S.pending.activeBboxIdx];
+  if (!bbox) return;
+  const isX  = field === 'xmin' || field === 'xmax';
+  const dim  = isX ? bboxCanvas.width : bboxCanvas.height;
+  bbox[BB_IDX[field]] = Math.max(0, Math.min(1, bbox[BB_IDX[field]] + px / dim));
+  syncBBInputs();
+  drawOverlay();
+}
+
+function applyBBInput(field) {
+  if (!S.pending) return;
+  const bbox = S.pending.bboxes[S.pending.activeBboxIdx];
+  if (!bbox) return;
+  const val = parseFloat($('bb-' + field).value);
+  if (isNaN(val)) return;
+  bbox[BB_IDX[field]] = Math.max(0, Math.min(1, val));
+  drawOverlay();
+}
+
+// Wire nudge buttons inside anno-form
+document.querySelectorAll('#bb-tuner .bb-btn[data-field]').forEach(btn => {
+  btn.addEventListener('click', () => nudgePending(btn.dataset.field, parseFloat(btn.dataset.d)));
+});
+
+// Wire direct-input fields inside anno-form
+BB_FIELDS.forEach(f => {
+  const inp = $('bb-' + f);
+  if (inp) inp.addEventListener('input', () => applyBBInput(f));
+});
+
+// "Add another box" button — enters append mode for pending
+$('btn-add-bbox').addEventListener('click', () => {
+  if (!S.pending) return;
+  S.appendMode  = true;
+  S.appendTarget = 'pending';
+  $('anno-form').classList.add('hidden');   // hide form while drawing
+  updateHint();
+  setStatus('Draw the next bounding box for this annotation…');
+});
+
+function updateHint() {
+  if (S.appendMode) {
+    $('hint').textContent = '✏️  Draw the next box for this annotation, then release';
+    bboxCanvas.style.cursor = 'crosshair';
+  } else if (S.fixedMode) {
+    $('hint').textContent = 'Fixed Box ON — pick label, then click to place';
+    bboxCanvas.style.cursor = 'cell';
+  } else {
+    $('hint').textContent = 'Click and drag on the PDF to draw a bounding box';
+    bboxCanvas.style.cursor = 'crosshair';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Edit Panel  (selected saved annotation — shown above anno-list)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Working copies for the edit panel
+let epBboxes       = null;   // array of bbox arrays (live-edited)
+let epActiveBboxIdx = 0;
+
+function syncEPSelectColor() {
+  const sel = $('ep-label-sel');
+  const c = LABEL_COLOR[sel.value] || '#888';
+  sel.style.borderColor = c;
+  sel.style.boxShadow   = `0 0 0 2px ${c}44`;
+}
+
+function openEditPanel(anno) {
+  // Normalize old single-bbox format
+  epBboxes        = (anno.bboxes ?? [anno.bbox]).map(b => [...b]);
+  epActiveBboxIdx = Math.min(epActiveBboxIdx, epBboxes.length - 1);
+  // Populate label select once
+  const epSel = $('ep-label-sel');
+  if (!epSel.options.length) {
+    populateGroupedSelect(epSel);
+    epSel.addEventListener('change', syncEPSelectColor);
+  }
+  epSel.value = anno.label;
+  syncEPSelectColor();
+  $('ep-text').value = anno.text || '';
+  renderEPChips();
+  syncEPInputs();
+  $('edit-panel').classList.add('visible');
+}
+
+function closeEditPanel() {
+  epBboxes        = null;
+  epActiveBboxIdx = 0;
+  $('edit-panel').classList.remove('visible');
+}
+
+// Render the numbered chip row for the edit panel
+function renderEPChips() {
+  const container = $('ep-chips');
+  container.innerHTML = '';
+  if (!epBboxes) return;
+  epBboxes.forEach((_, bi) => {
+    const chip = document.createElement('button');
+    chip.textContent  = `Box ${bi + 1}`;
+    chip.className    = 'bb-btn';
+    chip.style.cssText = bi === epActiveBboxIdx
+      ? 'background:var(--accent);border-color:var(--accent);color:#fff;'
+      : '';
+    chip.addEventListener('click', () => {
+      epActiveBboxIdx = bi;
+      renderEPChips();
+      syncEPInputs();
+      // Preview active box on canvas
+      previewEPBboxes();
+    });
+    if (epBboxes.length > 1) {
+      const del = document.createElement('span');
+      del.textContent = ' ×';
+      del.style.cssText = 'cursor:pointer;opacity:0.6;';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        epBboxes.splice(bi, 1);
+        epActiveBboxIdx = Math.min(epActiveBboxIdx, epBboxes.length - 1);
+        renderEPChips();
+        syncEPInputs();
+        previewEPBboxes();
+      });
+      chip.appendChild(del);
+    }
+    container.appendChild(chip);
+  });
+}
+
+function syncEPInputs() {
+  if (!epBboxes) return;
+  const bbox = epBboxes[epActiveBboxIdx];
+  if (!bbox) return;
+  const [ymin, xmin, ymax, xmax] = bbox;
+  $('ep-ymin').value = ymin.toFixed(4);
+  $('ep-xmin').value = xmin.toFixed(4);
+  $('ep-ymax').value = ymax.toFixed(4);
+  $('ep-xmax').value = xmax.toFixed(4);
+}
+
+// Live-preview all epBboxes on the canvas (before saving)
+function previewEPBboxes() {
+  if (!S.selectedId || !epBboxes) return;
+  const a = currentAnnos().find(x => x.id === S.selectedId);
+  if (a) { a.bboxes = epBboxes.map(b => [...b]); drawOverlay(); }
+}
+
+function nudgeEP(field, px) {
+  if (!epBboxes) return;
+  const bbox = epBboxes[epActiveBboxIdx];
+  const isX  = field === 'xmin' || field === 'xmax';
+  const dim  = isX ? bboxCanvas.width : bboxCanvas.height;
+  bbox[BB_IDX[field]] = Math.max(0, Math.min(1, bbox[BB_IDX[field]] + px / dim));
+  syncEPInputs();
+  previewEPBboxes();
+}
+
+function applyEPInput(field) {
+  if (!epBboxes) return;
+  const val = parseFloat($('ep-' + field).value);
+  if (isNaN(val)) return;
+  epBboxes[epActiveBboxIdx][BB_IDX[field]] = Math.max(0, Math.min(1, val));
+  previewEPBboxes();
+}
+
+// Wire nudge buttons inside edit-panel
+document.querySelectorAll('.ep-btn').forEach(btn => {
+  btn.addEventListener('click', () => nudgeEP(btn.dataset.field, parseFloat(btn.dataset.d)));
+});
+
+// Wire direct-input fields inside edit-panel
+BB_FIELDS.forEach(f => {
+  const inp = $('ep-' + f);
+  if (inp) inp.addEventListener('input', () => applyEPInput(f));
+});
+
+// "Add another box" button in edit panel — enters append mode for selected annotation
+$('btn-ep-add-bbox').addEventListener('click', () => {
+  if (!S.selectedId) return;
+  S.appendMode   = true;
+  S.appendTarget = S.selectedId;
+  $('edit-panel').classList.remove('visible');
+  updateHint();
+  setStatus('Draw the next bounding box for this annotation…');
+});
+
+$('btn-save-edit').addEventListener('click', () => {
+  if (!S.selectedId || !epBboxes) return;
+  const annos = currentAnnos();
+  const a = annos.find(x => x.id === S.selectedId);
+  if (a) {
+    a.bboxes = epBboxes.map(b => [...b]);
+    delete a.bbox;              // remove legacy field if present
+    a.label  = $('ep-label-sel').value;
+    a.text   = $('ep-text').value.trim();
+    setCurrentAnnos(annos);
+    persistStore();
+    setStatus('Annotation updated.');
+  }
+  closeEditPanel();
+  renderAnnoList();
+  drawOverlay();
+});
+
+$('btn-cancel-edit').addEventListener('click', () => {
+  closeEditPanel();
+  renderAnnoList();
+  drawOverlay();
+});
+
+$('btn-save-anno').addEventListener('click', () => {
+  if (!S.pending) return;
+
+  S.pending.label = selLabel.value;
+  S.pending.text  = $('inp-text').value.trim();
+  delete S.pending.activeBboxIdx;   // internal UI state, not part of data model
+
+  const list = currentAnnos();
+  list.push(S.pending);
+  setCurrentAnnos(list);
+
+  const fname = currentFileName();
+  if (S.store.files[fname].status !== 'completed')
+    S.store.files[fname].status = 'in_progress';
+
+  S.pending = null;
+  hideForm();
+  renderAnnoList();
+  drawOverlay();
+  persistStore();
+  setStatus(`Annotation saved. ${list.length} annotation(s) on page ${S.page}.`);
+});
+
+$('btn-cancel-anno').addEventListener('click', () => {
+  S.pending      = null;
+  S.appendMode   = false;
+  S.appendTarget = null;
+  hideForm();
+  updateHint();
+  drawOverlay();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Annotation list
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderAnnoList() {
+  const list  = $('anno-list');
+  const annos = currentAnnos();
+
+  if (annos.length === 0) {
+    list.innerHTML = '<div id="no-annos">No annotations on this page.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  annos.forEach(a => {
+    const bboxes  = a.bboxes ?? [a.bbox];
+    const color   = LABEL_COLOR[a.label] || '#888';
+    const sel     = a.id === S.selectedId;
+    const boxInfo = bboxes.length > 1
+      ? `<span style="color:#888;font-size:10px;">${bboxes.length} boxes</span>`
+      : `<span class="anno-coords">[${bboxes[0].map(v => v.toFixed(4)).join(', ')}]</span>`;
+    const el = document.createElement('div');
+    el.className    = 'anno-item' + (sel ? ' selected' : '');
+    el.dataset.id   = a.id;   // used for scrollIntoView from canvas click
+    el.innerHTML = `
+      <span class="badge" style="background:${color}28; color:${color}; border:1px solid ${color}55;">${a.label}</span>
+      <div class="anno-text">"${a.text || '(no text)'}"</div>
+      ${boxInfo}
+      <button class="del-btn" title="Delete">×</button>
+    `;
+    el.addEventListener('click', e => {
+      if (e.target.classList.contains('del-btn')) return;
+      S.selectedId = a.id;
+      renderAnnoList();
+      drawOverlay();
+      openEditPanel(a);
+    });
+    el.querySelector('.del-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      deleteAnno(a.id);
+    });
+    list.appendChild(el);
+  });
+}
+
+function deleteAnno(id) {
+  setCurrentAnnos(currentAnnos().filter(a => a.id !== id));
+  if (S.selectedId === id) { S.selectedId = null; closeEditPanel(); }
+  renderAnnoList();
+  drawOverlay();
+  persistStore();
+  setStatus('Annotation deleted.');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mark complete & export
+// ─────────────────────────────────────────────────────────────────────────────
+
+$('btn-done').addEventListener('click', async () => {
+  if (S.fileIdx < 0) return;
+  const fname = currentFileName();
+  S.store.files[fname].status = 'completed';
+  renderFileList();
+  await persistStore();
+  setStatus(`"${fname}" marked as completed and saved.`);
+});
+
+$('btn-export').addEventListener('click', () => {
+  // Fallback download (works even without write permission)
+  const blob = new Blob([JSON.stringify(S.store, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'annotation.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('Downloaded annotation.json');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyboard shortcuts
+// ─────────────────────────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', async e => {
+  // Don't intercept when typing in form fields
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' ||
+      e.target.tagName === 'SELECT') return;
+
+  switch (e.key) {
+    case 'ArrowRight':
+    case 'PageDown':
+      if (S.page < S.totalPages) { S.page++; await pageSwitch(); }
+      break;
+    case 'ArrowLeft':
+    case 'PageUp':
+      if (S.page > 1) { S.page--; await pageSwitch(); }
+      break;
+    case 'Delete':
+    case 'Backspace':
+      if (S.selectedId) deleteAnno(S.selectedId);
+      break;
+    case 'Escape':
+      S.pending      = null;
+      S.selectedId   = null;
+      S.appendMode   = false;
+      S.appendTarget = null;
+      hideForm();
+      closeEditPanel();
+      updateHint();
+      renderAnnoList();
+      drawOverlay();
+      break;
+    case 'Enter':
+      if (S.pending) $('btn-save-anno').click();
+      break;
+    case '+':
+    case '=':
+      S.scale = Math.min(S.scale + 0.25, 4); await renderPage(); break;
+    case '-':
+      S.scale = Math.max(S.scale - 0.25, 0.5); await renderPage(); break;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+
+setStatus('Ready. Click "Open Folder" to load a folder of PDFs.');
+</script>
+</body>
+</html>

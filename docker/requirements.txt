@@ -1,6 +1,8 @@
-augraphy
+augraphy==8.2.6
+datasets==4.8.4
 pdf2image
 opencv-python-headless
 Pillow
 pyyaml
 numpy
+fiftyone

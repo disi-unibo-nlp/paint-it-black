@@ -159,12 +159,16 @@ def init_logger(name: Optional[str] = None, level: str = "INFO", output_path: Op
 
     Args:
         name: Logger name (use __name__ in modules). None returns root logger.
+              If "__main__" is passed, the stem of sys.argv[0] is used instead.
         level: Log level string ("DEBUG", "INFO", "WARNING", "ERROR").
         output_path: If provided, also write logs to this file path.
 
     Returns:
         Configured Logger instance.
     """
+    if name == "__main__":
+        name = Path(sys.argv[0]).stem
+
     logging.basicConfig(
         level=getattr(logging, level.upper()),
         format="[%(levelname)s] %(name)s - %(message)s",
