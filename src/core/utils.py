@@ -103,11 +103,18 @@ class ConfigArgumentParser:
             if spec["nargs"] is not None:
                 if not isinstance(value, list):
                     raise ValueError(f"Config key '{key}' expects a list, got {type(value).__name__}")
-                if spec["type"] is not None:
+                # Only validate item types for explicitly non-str types: YAML always
+                # deserialises unquoted integers as int, never as str, so str-typed
+                # args that accept mixed string/int values (e.g. colour specs like
+                # ["random"] or [255, 220, 0]) would incorrectly fail validation.
+                if spec["type"] is not None and spec["type"] is not str:
                     for item in value:
-                        if not isinstance(item, spec["type"]):
+                        expected = spec["type"]
+                        if expected == float and isinstance(item, (int, float)):
+                            continue
+                        if not isinstance(item, expected):
                             raise ValueError(
-                                f"Config key '{key}' list items expect {spec['type'].__name__}, "
+                                f"Config key '{key}' list items expect {expected.__name__}, "
                                 f"got {type(item).__name__} for item '{item}'"
                             )
 

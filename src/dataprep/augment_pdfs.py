@@ -61,6 +61,43 @@ from augraphy import (
 from core.utils import ConfigArgumentParser, init_logger, set_seed
 
 
+# ── Constants ────────────────────────────────────────────────────────────────
+
+_MARKUP_TYPES = ["strikethrough", "crossed", "underline", "highlight"]
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+_INK_TYPES = ["pencil", "pen", "marker", "highlighter"]
+
+
+def _resolve_markup_ink(args):
+    """Return a concrete ink type string, sampling by weight when ink='random'."""
+    if args.annotations_markup_ink != "random":
+        return args.annotations_markup_ink
+    weights = np.array(args.annotations_markup_ink_weights, dtype=float)
+    return _INK_TYPES[np.random.choice(len(weights), p=weights / weights.sum())]
+
+
+def _resolve_markup_color(color_arg):
+    """Resolve a per-ink color arg to a value accepted by Markup(markup_color=...).
+
+    color_arg is a list from argparse nargs="+":
+      ["random"] or ["contrast"]   → string passthrough to augraphy
+      [255, 220, 0]                → fixed color, RGB→BGR converted to (0, 220, 255)
+      [255,220,0, 255,170,0]       → sample uniformly from the two RGB triples, then BGR-convert
+
+    Colors are specified as RGB in the config/CLI (natural for humans) and
+    converted to BGR here because augraphy operates on OpenCV images.
+    """
+    if isinstance(color_arg[0], str) and not color_arg[0].lstrip("-").isdigit():
+        return color_arg[0]
+    ints = [int(v) for v in color_arg]
+    triples = [tuple(ints[i:i + 3]) for i in range(0, len(ints), 3)]
+    r, g, b = triples[np.random.randint(len(triples))]
+    return (b, g, r)  # RGB → BGR
+
+
 # ── Phase builders ────────────────────────────────────────────────────────────
 
 def _build_ink_phase(args) -> list:
@@ -198,6 +235,37 @@ def _apply_page_sampled_augmentations(img, args):
                 half_kernel_size=tuple(args.faxify_half_kernel_size),
                 angle=tuple(args.faxify_angle),
                 sigma=tuple(args.faxify_sigma),
+                p=1.0,
+            )(result)
+
+    if args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
+        if np.random.random() < args.annotations_p:
+            weights = np.array(args.annotations_markup_type_weights, dtype=float)
+            markup_type = _MARKUP_TYPES[np.random.choice(len(weights), p=weights / weights.sum())]
+            markup_ink = _resolve_markup_ink(args)
+            color_args = {
+                "pencil":      args.annotations_markup_pencil_colors,
+                "pen":         args.annotations_markup_pen_colors,
+                "marker":      args.annotations_markup_marker_colors,
+                "highlighter": args.annotations_markup_highlighter_colors,
+            }[markup_ink]
+            thickness_range = {
+                "pencil":      args.annotations_markup_pencil_thickness_range,
+                "pen":         args.annotations_markup_pen_thickness_range,
+                "marker":      args.annotations_markup_marker_thickness_range,
+                "highlighter": args.annotations_markup_highlighter_thickness_range,
+            }[markup_ink]
+            _swm = args.annotations_markup_single_word_mode
+            result = Markup(
+                num_lines_range=tuple(args.annotations_markup_num_lines_range),
+                markup_length_range=tuple(args.annotations_markup_length_range),
+                markup_thickness_range=tuple(thickness_range),
+                markup_type=markup_type,
+                markup_ink=markup_ink,
+                markup_color=_resolve_markup_color(color_args),
+                large_word_mode={-1: "random", 0: False, 1: True}[args.annotations_markup_large_word_mode],
+                single_word_mode=(bool(np.random.randint(2)) if _swm == -1 else bool(_swm)),
+                repetitions=np.random.randint(args.annotations_markup_repetitions[0], args.annotations_markup_repetitions[1] + 1),
                 p=1.0,
             )(result)
 
@@ -374,14 +442,33 @@ def _build_post_phase(args) -> list:
     if args.annotations_p > 0:
         # Markup and Scribbles fire independently so a Markup detection failure
         # doesn't silently produce a blank result.
-        if args.annotations_markup:
+        # When markup_sampling=1, Markup is suppressed here and applied manually
+        # in _apply_page_sampled_augmentations so per-ink color can be resolved per image.
+        if args.annotations_markup and not args.annotations_markup_sampling:
+            _swm = args.annotations_markup_single_word_mode
+            _ink = _resolve_markup_ink(args)
+            _color_args = {
+                "pencil":      args.annotations_markup_pencil_colors,
+                "pen":         args.annotations_markup_pen_colors,
+                "marker":      args.annotations_markup_marker_colors,
+                "highlighter": args.annotations_markup_highlighter_colors,
+            }[_ink]
+            _thickness_range = {
+                "pencil":      args.annotations_markup_pencil_thickness_range,
+                "pen":         args.annotations_markup_pen_thickness_range,
+                "marker":      args.annotations_markup_marker_thickness_range,
+                "highlighter": args.annotations_markup_highlighter_thickness_range,
+            }[_ink]
             phase.append(Markup(
                 num_lines_range=tuple(args.annotations_markup_num_lines_range),
                 markup_length_range=tuple(args.annotations_markup_length_range),
-                markup_thickness_range=tuple(args.annotations_markup_thickness_range),
+                markup_thickness_range=tuple(_thickness_range),
                 markup_type=args.annotations_markup_type,
-                markup_ink="random",
-                markup_color="random",
+                markup_ink=_ink,
+                markup_color=_resolve_markup_color(_color_args),
+                large_word_mode={-1: "random", 0: False, 1: True}[args.annotations_markup_large_word_mode],
+                single_word_mode=(bool(np.random.randint(2)) if _swm == -1 else bool(_swm)),
+                repetitions=np.random.randint(args.annotations_markup_repetitions[0], args.annotations_markup_repetitions[1] + 1),
                 p=args.annotations_p,
             ))
         if args.annotations_scribbles:
@@ -644,13 +731,38 @@ def main():
     parser.add_argument("--page_border_curve_height", type=int, nargs=2, default=[2, 4])
     parser.add_argument("--page_border_curve_length", type=int, nargs=2, default=[50, 100])
 
-    # annotations (OneOf: markup / scribbles)
+    # annotations
     parser.add_argument("--annotations_p", type=float, default=0.3)
     parser.add_argument("--annotations_markup", type=int, default=1)
     parser.add_argument("--annotations_markup_type", type=str, default="random")
     parser.add_argument("--annotations_markup_num_lines_range", type=int, nargs=2, default=[1, 4])
     parser.add_argument("--annotations_markup_length_range", type=float, nargs=2, default=[0.5, 1.0])
-    parser.add_argument("--annotations_markup_thickness_range", type=int, nargs=2, default=[1, 3])
+    parser.add_argument("--annotations_markup_pencil_thickness_range",      type=int, nargs=2, default=[1, 3])
+    parser.add_argument("--annotations_markup_pen_thickness_range",         type=int, nargs=2, default=[1, 3])
+    parser.add_argument("--annotations_markup_marker_thickness_range",      type=int, nargs=2, default=[1, 3])
+    parser.add_argument("--annotations_markup_highlighter_thickness_range", type=int, nargs=2, default=[1, 3])
+    parser.add_argument("--annotations_markup_ink", type=str, default="random")
+    # Weights for [pencil, pen, marker, highlighter] when markup_ink="random" — sampled per image
+    parser.add_argument("--annotations_markup_ink_weights", type=float, nargs=4, default=[0.25, 0.25, 0.25, 0.25])
+    # Controls which contours Markup considers eligible for marking.
+    # -1 = library default ("random" — 50% chance of silent no-op on full-width text lines)
+    #  0 = strict mode: contour must be narrow (w < image_width/5) — rarely useful for PDFs
+    #  1 = lenient mode: any contour that passes the height check qualifies (recommended)
+    parser.add_argument("--annotations_markup_large_word_mode", type=int, default=1)
+    # -1=random (coin flip per image), 0=False (line-level, default): dilation kernel (20,1) merges words into full lines
+    # 1=True (word-level): dilation kernel (10,1) marks individual words; forces markup_length_range=(1,1)
+    parser.add_argument("--annotations_markup_single_word_mode", type=int, default=0)
+    # Range [min, max] of strokes drawn per qualifying contour — sampled uniformly per image
+    parser.add_argument("--annotations_markup_repetitions", type=int, nargs=2, default=[1, 1])
+    # markup_sampling=1: suppress Markup from phase, sample type+color manually per image
+    parser.add_argument("--annotations_markup_sampling", type=int, default=0)
+    # Weights for [strikethrough, crossed, underline, highlight] — must have exactly 4 values
+    parser.add_argument("--annotations_markup_type_weights", type=float, nargs=4, default=[0.25, 0.25, 0.25, 0.25])
+    # Per-ink color: "random"|"contrast" string, or flat RGB ints (3=fixed, 6+=sample equally)
+    parser.add_argument("--annotations_markup_pencil_colors",      nargs="+", default=["random"])
+    parser.add_argument("--annotations_markup_pen_colors",         nargs="+", default=["random"])
+    parser.add_argument("--annotations_markup_marker_colors",      nargs="+", default=["random"])
+    parser.add_argument("--annotations_markup_highlighter_colors", nargs="+", default=["random"])
     parser.add_argument("--annotations_scribbles", type=int, default=1)
     parser.add_argument("--annotations_scribbles_size_range", type=int, nargs=2, default=[400, 600])
     parser.add_argument("--annotations_scribbles_count_range", type=int, nargs=2, default=[1, 3])
