@@ -17,8 +17,7 @@ subtle_noise_p: 1.0
 subtle_noise_page_sampling: 1
 subtle_noise_num_profiles: 2
 subtle_noise_profile_weights: [0.50, 0.50]
-#                              low_noise_mix  stronger
-subtle_noise_profile_ranges:  [18,            30]
+subtle_noise_profile_ranges:  [18, 30]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0
