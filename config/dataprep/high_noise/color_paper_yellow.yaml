@@ -8,22 +8,21 @@
 # Saturation must be ≥40 to be clearly visible on white paper (V=255).
 # Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise/color_paper
 
-run_name: color_paper
+run_name: color_paper_yellow
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/high_noise
-num_augmentations: 6
+num_augmentations: 1
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 color_paper_p: 1.0
 color_paper_page_sampling: 1
 color_paper_num_profiles: 3
-color_paper_profile_weights: [0.30, 0.40, 0.30]
-#                              near-white     cream        aged yellow
-color_paper_profile_hue_ranges:        [15, 20,  15, 25,   20, 30]
-color_paper_profile_saturation_ranges: [ 5, 15,  15, 40,   40, 80]
+color_paper_profile_weights: [1.0]
+color_paper_profile_hue_ranges: [20, 30]
+color_paper_profile_saturation_ranges: [40, 80]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0

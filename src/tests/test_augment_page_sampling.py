@@ -101,6 +101,8 @@ def base_args(**overrides):
         annotations_markup_pen_colors=["random"],
         annotations_markup_marker_colors=["random"],
         annotations_markup_highlighter_colors=["random"],
+        annotations_markup_control_points_range=[2, 3],
+        annotations_markup_line_offset=3,
         # seed (needed by _build_per_image_pipeline)
         seed=42,
     )

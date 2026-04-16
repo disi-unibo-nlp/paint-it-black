@@ -1,27 +1,21 @@
-# high_noise: faxify
-# Fax transmission artifacts with profile-level sampling across three effect modes.
-# Each augmented image draws one profile:
-#   0 = monochrome only  (33%)
-#   1 = halftone only    (34%)
-#   2 = both             (33%)
-# The "no effect" case (neither) is never sampled.
-# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise/faxify
+# high_noise: faxify — monochrome + halftone
+# Profile 2 (both) always selected: binarizes then applies halftone pattern on top.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise/faxify_both
 
-run_name: faxify
+run_name: faxify_both
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/high_noise
-num_augmentations: 6
+num_augmentations: 8
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 faxify_p: 1.0
 faxify_profile_sampling: 1
-faxify_profile_weights: [0.33, 0.34, 0.33]
-#                        mono-only  halftone-only  both
-faxify_scale_range: [0.2, 2.0]
-faxify_monochrome_method: random
+faxify_profile_weights: [0.0, 0.0, 1.0] # mono-only, halftone-only, both
+faxify_scale_range: [0.5, 1.5]
+faxify_monochrome_methods: [threshold_li, threshold_mean, threshold_otsu, threshold_sauvola]  # threshold_triangle excluded
 faxify_half_kernel_size: [1, 1]
 faxify_angle: [0, 360]
 faxify_sigma: [1.0, 3.0]

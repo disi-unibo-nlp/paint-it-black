@@ -196,6 +196,7 @@ three modes is guaranteed.
 |---|---|---|---|
 | `faxify_profile_sampling` | `int` | `0` | `1` = sample one of three fax modes per image (suppresses Faxify from the pipeline phase). |
 | `faxify_profile_weights` | `float list (3)` | `[0.33, 0.34, 0.33]` | Weights for profiles 0 (mono-only), 1 (halftone-only), 2 (both). |
+| `faxify_monochrome_methods` | `str list` | `[]` | Inclusion list for monochrome methods. When non-empty, overrides `faxify_monochrome_method` with a uniform random pick per image. Valid values: `threshold_li`, `threshold_mean`, `threshold_otsu`, `threshold_sauvola`, `threshold_triangle`. Empty = use `faxify_monochrome_method` as-is. |
 
 Example — equal probability for all three modes:
 ```yaml

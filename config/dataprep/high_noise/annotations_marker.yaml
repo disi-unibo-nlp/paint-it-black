@@ -8,12 +8,12 @@
 # markup_length_range [1.0, 1.0]: always covers the full detected line width.
 # Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise/annotations
 
-run_name: annotations
+run_name: annotations_marker
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/high_noise
-num_augmentations: 6
+num_augmentations: 4
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
@@ -23,18 +23,14 @@ annotations_markup_sampling: 1
 annotations_markup_large_word_mode: 1
 annotations_markup_single_word_mode: 0
 annotations_markup_repetitions: [1, 1]
-annotations_markup_ink_weights: [0.0, 0.34, 0.33, 0.33] # pencil, pen, marker, highlighter
+annotations_markup_ink_weights: [0.0, 0.0, 1.0, 0.0] # pencil, pen, marker, highlighter
 annotations_markup_type_weights: [0.0, 0.0, 0.0, 1.0]
 annotations_markup_num_lines_range: [15, 40]
-annotations_markup_length_range: [1.0, 2.0]
-annotations_markup_pencil_thickness_range: [2, 2]
-annotations_markup_pen_thickness_range: [1, 2]
+annotations_markup_length_range: [3.0, 3.0]
 annotations_markup_marker_thickness_range: [1, 1]
-annotations_markup_highlighter_thickness_range: [1, 1]
-annotations_markup_pencil_colors: [0, 0, 0]
-annotations_markup_pen_colors: [0, 0, 0]
 annotations_markup_marker_colors: [0, 0, 0]
-annotations_markup_highlighter_colors: [255, 255, 0] # yellow
+annotations_markup_control_points_range: [2, 3]  # control points per stroke; fewer = straighter
+annotations_markup_line_offset: 3                 # y-jitter per point in pixels
 annotations_scribbles: 0
 
 # ── disabled ──────────────────────────────────────────────────────────────────

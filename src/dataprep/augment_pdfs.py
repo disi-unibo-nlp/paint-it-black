@@ -18,10 +18,12 @@ Set any OneOf membership flag (e.g. scanner_noise_dirty_drum) to 0 to exclude it
 Different presets are different config files — there is no --pipeline choice.
 """
 
+import random
 import cv2
 import numpy as np
 from pathlib import Path
 from pdf2image import convert_from_path
+from augraphy.augmentations.lib import smooth
 from augraphy import (
     AugraphyPipeline,
     AugmentationSequence,
@@ -96,6 +98,215 @@ def _resolve_markup_color(color_arg):
     triples = [tuple(ints[i:i + 3]) for i in range(0, len(ints), 3)]
     r, g, b = triples[np.random.randint(len(triples))]
     return (b, g, r)  # RGB → BGR
+
+
+
+class RealisticMarkup(Markup):
+    """Markup subclass with two fixes:
+
+    1. distribute_line: configurable control-point count and y-jitter (instead of
+       augraphy's hardcoded randint(3,6) points and offset=6 passed from __call__).
+    2. __call__: corrected markup_length formula so values >1.0 center the extended
+       annotation over the original text line, rather than shifting it off to the left.
+    """
+
+    def __init__(self, *args, control_points_range=(2, 3), line_offset=3, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.control_points_range = control_points_range
+        self.line_offset = line_offset
+
+    def distribute_line(self, starting_point, ending_point, offset):
+        points_count = random.randint(self.control_points_range[0], self.control_points_range[1])
+        points_x = np.linspace(starting_point[0], ending_point[0], points_count)
+        points_y = [starting_point[1] + random.uniform(-self.line_offset, self.line_offset) for _ in points_x]
+        return smooth(np.column_stack((points_x, points_y)).astype("float"), 6)
+
+    def __call__(self, image, layer=None, mask=None, keypoints=None, bounding_boxes=None, force=False):
+        # Verbatim copy of Markup.__call__ with one fix:
+        # The markup_length x-shift formula is corrected to use original_w so that
+        # markup_length > 1.0 centers the annotation instead of pushing it off-screen.
+
+        has_alpha = 0
+        if len(image.shape) < 3:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        elif image.shape[2] == 4:
+            has_alpha = 1
+            image, image_alpha = image[:, :, :3], image[:, :, 3]
+
+        markup_image = image.copy()
+
+        if self.markup_color == "random":
+            markup_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        elif self.markup_color == "contrast":
+            single_color = cv2.resize(image, (1, 1), interpolation=cv2.INTER_AREA)
+            markup_color = 255 - single_color[0][0]
+            markup_color = markup_color.tolist()
+        else:
+            markup_color = self.markup_color
+
+        if self.large_word_mode == "random":
+            large_word_mode = random.choice([True, False])
+        else:
+            large_word_mode = self.large_word_mode
+
+        if self.markup_type == "random":
+            markup_type = random.choice(["strikethrough", "crossed", "underline", "highlight"])
+        else:
+            markup_type = self.markup_type
+
+        num_lines = random.randint(self.num_lines_range[0], self.num_lines_range[1])
+
+        binary_image = self._preprocess(image)
+
+        contours, hierarchy = cv2.findContours(
+            binary_image,
+            cv2.RETR_LIST,
+            cv2.CHAIN_APPROX_NONE,
+        )
+
+        heights = []
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            heights.append(h)
+
+        bins = np.unique(heights)
+        hist, bin_edges = np.histogram(heights, bins=bins, density=False)
+        if len(bin_edges) > 1 and np.max(hist) > 20:
+            character_height_min = bin_edges[np.argmax(hist)]
+            character_height_max = bin_edges[np.argmax(hist) + 1]
+            character_height_average = int((character_height_max + character_height_min) / 2)
+            height_range = ((character_height_max - character_height_min) / 2) + 1
+        else:
+            character_height_average = -1
+            height_range = -1
+
+        lines_coordinates = []
+
+        if len(contours) > 0:
+            contours = list(contours)
+            random.shuffle(contours)
+
+        for cnt in contours:
+            choice = random.choice([False, True])
+            x, y, w, h = cv2.boundingRect(cnt)
+
+            if character_height_average == -1:
+                check_height = h > 10
+            else:
+                check_height = (h > character_height_average - height_range) and (
+                    h < character_height_average + height_range
+                )
+
+            if large_word_mode:
+                conditions = check_height
+            else:
+                conditions = (
+                    choice
+                    and (w > h * 2)
+                    and (w * h < (markup_image.shape[0] * markup_image.shape[1]) / 10)
+                    and w < int(markup_image.shape[1] / 5)
+                    and check_height
+                )
+
+            if conditions:
+                if num_lines == 0:
+                    break
+                num_lines = num_lines - 1
+                markup_length = random.uniform(
+                    self.markup_length_range[0],
+                    self.markup_length_range[1],
+                )
+                # FIX: save original_w before scaling so the centering shift is correct
+                # for markup_length > 1.0 (augraphy's original formula uses new w, which
+                # pushes the annotation off-screen to the left for values > 1).
+                original_w = w
+                w = int(original_w * markup_length)
+                x = int(x + (original_w - w) // 2)
+
+                offset = 6
+
+                if markup_type == "strikethrough" or markup_type == "highlight":
+                    starting_point = [x, int(y + (h / 2))]
+                    ending_point = [x + w, int(y + (h / 2))]
+                elif markup_type == "crossed":
+                    starting_point = [x, y]
+                    ending_point = [x + w, y + h]
+                else:
+                    starting_point = [x, y + h]
+                    ending_point = [x + w, y + h]
+
+                for i in range(self.repetitions):
+                    if markup_type == "crossed":
+                        ysize, xsize = markup_image.shape[:2]
+                        p1_x = np.clip(starting_point[0] + random.randint(-offset * 5, offset * 5), 0, xsize)
+                        p1_y = np.clip(starting_point[1] + random.randint(-offset * 1, offset * 1), 0, ysize)
+                        p2_x = np.clip(ending_point[0] + random.randint(-offset * 5, offset * 5), 0, xsize)
+                        p2_y = np.clip(ending_point[1] + random.randint(-offset * 1, offset * 1), 0, ysize)
+                        p1 = (p1_x, p1_y)
+                        p2 = (p2_x, p2_y)
+                        lines_coordinates.append(np.array([p1, p2]))
+                        p1_x = np.clip(ending_point[0] + random.randint(-offset * 5, offset * 5), 0, xsize)
+                        p1_y = np.clip(starting_point[1] + random.randint(-offset * 1, offset * 1), 0, ysize)
+                        p2_x = np.clip(starting_point[0] + random.randint(-offset * 5, offset * 5), 0, xsize)
+                        p2_y = np.clip(ending_point[1] + random.randint(-offset * 1, offset * 1), 0, ysize)
+                        p1 = (p1_x, p1_y)
+                        p2 = (p2_x, p2_y)
+                        lines_coordinates.append(np.array([p1, p2]))
+                    else:
+                        points_list = self.distribute_line(
+                            starting_point,
+                            ending_point,
+                            offset,
+                        ).astype("int")
+                        lines_coordinates.append(points_list)
+
+        if lines_coordinates:
+            if self.markup_ink == "random":
+                markup_ink = random.choice(["pencil", "pen", "marker", "highlighter"])
+            else:
+                markup_ink = self.markup_ink
+
+            if self.markup_type == "highlight":
+                markup_thickness_range = (self.markup_thickness_range[0] + 5, self.markup_thickness_range[1] + 5)
+            else:
+                markup_thickness_range = self.markup_thickness_range
+
+            from augraphy.utilities.inkgenerator import InkGenerator
+            ink_generator = InkGenerator(
+                ink_type=markup_ink,
+                ink_draw_method="lines",
+                ink_draw_iterations=(1, 1),
+                ink_location="random",
+                ink_background=markup_image,
+                ink_background_size=None,
+                ink_background_color=None,
+                ink_color=markup_color,
+                ink_min_brightness=1,
+                ink_min_brightness_value_range=(150, 200),
+                ink_draw_size_range=None,
+                ink_thickness_range=markup_thickness_range,
+                ink_brightness_change=[0],
+                ink_skeletonize=0,
+                ink_skeletonize_iterations_range=(1, 1),
+                ink_text=None,
+                ink_text_font=None,
+                ink_text_rotate_range=None,
+                ink_lines_coordinates=lines_coordinates,
+                ink_lines_stroke_count_range=(1, 1),
+            )
+            markup_image = ink_generator.generate_ink()
+
+        if has_alpha:
+            markup_image = np.dstack((markup_image, image_alpha))
+
+        outputs_extra = []
+        if mask is not None or keypoints is not None or bounding_boxes is not None:
+            outputs_extra = [mask, keypoints, bounding_boxes]
+
+        if outputs_extra:
+            return [markup_image] + outputs_extra
+        else:
+            return markup_image
 
 
 # ── Phase builders ────────────────────────────────────────────────────────────
@@ -230,7 +441,7 @@ def _apply_page_sampled_augmentations(img, args):
             result = Faxify(
                 scale_range=tuple(args.faxify_scale_range),
                 monochrome=mono,
-                monochrome_method=args.faxify_monochrome_method,
+                monochrome_method=_resolve_monochrome_method(args),
                 halftone=halftone,
                 half_kernel_size=tuple(args.faxify_half_kernel_size),
                 angle=tuple(args.faxify_angle),
@@ -256,7 +467,7 @@ def _apply_page_sampled_augmentations(img, args):
                 "highlighter": args.annotations_markup_highlighter_thickness_range,
             }[markup_ink]
             _swm = args.annotations_markup_single_word_mode
-            result = Markup(
+            result = RealisticMarkup(
                 num_lines_range=tuple(args.annotations_markup_num_lines_range),
                 markup_length_range=tuple(args.annotations_markup_length_range),
                 markup_thickness_range=tuple(thickness_range),
@@ -266,6 +477,8 @@ def _apply_page_sampled_augmentations(img, args):
                 large_word_mode={-1: "random", 0: False, 1: True}[args.annotations_markup_large_word_mode],
                 single_word_mode=(bool(np.random.randint(2)) if _swm == -1 else bool(_swm)),
                 repetitions=np.random.randint(args.annotations_markup_repetitions[0], args.annotations_markup_repetitions[1] + 1),
+                control_points_range=tuple(args.annotations_markup_control_points_range),
+                line_offset=args.annotations_markup_line_offset,
                 p=1.0,
             )(result)
 
@@ -320,6 +533,13 @@ def _build_paper_phase(args) -> list:
         ))
 
     return phase
+
+
+def _resolve_monochrome_method(args):
+    methods = getattr(args, "faxify_monochrome_methods", [])
+    if methods:
+        return random.choice(methods)
+    return args.faxify_monochrome_method
 
 
 def _build_post_phase(args) -> list:
@@ -459,7 +679,7 @@ def _build_post_phase(args) -> list:
                 "marker":      args.annotations_markup_marker_thickness_range,
                 "highlighter": args.annotations_markup_highlighter_thickness_range,
             }[_ink]
-            phase.append(Markup(
+            phase.append(RealisticMarkup(
                 num_lines_range=tuple(args.annotations_markup_num_lines_range),
                 markup_length_range=tuple(args.annotations_markup_length_range),
                 markup_thickness_range=tuple(_thickness_range),
@@ -469,6 +689,8 @@ def _build_post_phase(args) -> list:
                 large_word_mode={-1: "random", 0: False, 1: True}[args.annotations_markup_large_word_mode],
                 single_word_mode=(bool(np.random.randint(2)) if _swm == -1 else bool(_swm)),
                 repetitions=np.random.randint(args.annotations_markup_repetitions[0], args.annotations_markup_repetitions[1] + 1),
+                control_points_range=tuple(args.annotations_markup_control_points_range),
+                line_offset=args.annotations_markup_line_offset,
                 p=args.annotations_p,
             ))
         if args.annotations_scribbles:
@@ -485,7 +707,7 @@ def _build_post_phase(args) -> list:
         phase.append(Faxify(
             scale_range=tuple(args.faxify_scale_range),
             monochrome=args.faxify_monochrome,
-            monochrome_method=args.faxify_monochrome_method,
+            monochrome_method=_resolve_monochrome_method(args),
             halftone=args.faxify_halftone,
             half_kernel_size=tuple(args.faxify_half_kernel_size),
             angle=tuple(args.faxify_angle),
@@ -763,6 +985,10 @@ def main():
     parser.add_argument("--annotations_markup_pen_colors",         nargs="+", default=["random"])
     parser.add_argument("--annotations_markup_marker_colors",      nargs="+", default=["random"])
     parser.add_argument("--annotations_markup_highlighter_colors", nargs="+", default=["random"])
+    # Control point count per stroke [min, max] — fewer points = straighter lines
+    parser.add_argument("--annotations_markup_control_points_range", type=int, nargs=2, default=[2, 3])
+    # Y-jitter magnitude (pixels) applied to each control point — lower = straighter lines
+    parser.add_argument("--annotations_markup_line_offset", type=int, default=3)
     parser.add_argument("--annotations_scribbles", type=int, default=1)
     parser.add_argument("--annotations_scribbles_size_range", type=int, nargs=2, default=[400, 600])
     parser.add_argument("--annotations_scribbles_count_range", type=int, nargs=2, default=[1, 3])
@@ -773,6 +999,8 @@ def main():
     parser.add_argument("--faxify_scale_range", type=float, nargs=2, default=[1.0, 1.5])
     parser.add_argument("--faxify_monochrome", type=int, default=-1)
     parser.add_argument("--faxify_monochrome_method", type=str, default="random")
+    # Explicit inclusion list; when non-empty, overrides faxify_monochrome_method with a uniform random pick
+    parser.add_argument("--faxify_monochrome_methods", type=str, nargs="+", default=[])
     parser.add_argument("--faxify_halftone", type=int, default=-1)
     parser.add_argument("--faxify_half_kernel_size", type=int, nargs=2, default=[1, 1])
     parser.add_argument("--faxify_angle", type=int, nargs=2, default=[0, 360])

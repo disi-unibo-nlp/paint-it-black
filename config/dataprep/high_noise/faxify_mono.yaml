@@ -1,9 +1,8 @@
-# high_noise_mix: lines_degradation
-# Aggressive ruled-line degradation — heavy splitting and dark replacement values.
-# More visible line damage than low_noise, covering shorter and more broken lines.
-# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise_mix/lines_degradation
+# high_noise: faxify — monochrome only
+# Profile 0 (mono-only) always selected: binarizes the image with faxify_monochrome_method.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise/faxify_mono
 
-run_name: lines_degradation
+run_name: faxify_mono
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
@@ -12,21 +11,21 @@ num_augmentations: 8
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────
-lines_degradation_p: 1.0
-lines_degradation_gradient_range: [32, 255]
-lines_degradation_gradient_direction: [0, 2]
-lines_degradation_split_probability: [0.2, 0.6]
-lines_degradation_replacement_value: [250, 255]
-lines_degradation_replacement_probability: [0.4, 0.5]
-lines_degradation_min_length: [30, 40]
-lines_degradation_long_to_short_ratio: [5, 7]
-lines_degradation_replacement_thickness: [1, 3]
+faxify_p: 1.0
+faxify_profile_sampling: 1
+faxify_profile_weights: [1.0, 0.0, 0.0] # mono-only, halftone-only, both
+faxify_scale_range: [0.5, 1.5]
+faxify_monochrome_methods: [threshold_li, threshold_mean, threshold_otsu, threshold_sauvola]  # threshold_triangle excluded
+faxify_half_kernel_size: [1, 1]
+faxify_angle: [0, 360]
+faxify_sigma: [1.0, 3.0]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0
 bleed_through_p: 0.0
 low_ink_p: 0.0
 ink_mottling_p: 0.0
+lines_degradation_p: 0.0
 color_paper_p: 0.0
 texture_p: 0.0
 stains_p: 0.0
@@ -41,4 +40,3 @@ jpeg_p: 0.0
 folding_p: 0.0
 page_border_p: 0.0
 annotations_p: 0.0
-faxify_p: 0.0
