@@ -8,7 +8,7 @@ log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/high_noise
-num_augmentations: 5
+num_augmentations: 6
 dpi: 300
 
 # ── showcased ─────────────────────────────────────────────────────────────────
