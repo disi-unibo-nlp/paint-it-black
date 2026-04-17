@@ -35,7 +35,7 @@ scanner_noise_dirty_drum_line_concentration: 0.12
 scanner_noise_dirty_drum_direction: -1
 scanner_noise_dirty_drum_noise_intensity: 0.5
 scanner_noise_dirty_drum_noise_value: [0, 40]
-scanner_noise_dirty_drum_ksize: [2, 2]
+scanner_noise_dirty_drum_ksize: [3, 3]
 scanner_noise_dirty_screen: 1
 scanner_noise_dirty_screen_n_clusters: [15, 40]
 scanner_noise_dirty_screen_n_samples: [2, 10]

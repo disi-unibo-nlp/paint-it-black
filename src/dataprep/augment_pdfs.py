@@ -19,6 +19,7 @@ Different presets are different config files — there is no --pipeline choice.
 """
 
 import random
+import warnings
 import cv2
 import numpy as np
 from pathlib import Path
@@ -579,13 +580,21 @@ def _build_post_phase(args) -> list:
                 p=1.0,
             ))
         if args.scanner_noise_dirty_drum:
+            _ksize_raw = tuple(args.scanner_noise_dirty_drum_ksize)
+            _ksize = tuple(max(1, v if v % 2 == 1 else v + 1) for v in _ksize_raw)
+            if _ksize != _ksize_raw:
+                warnings.warn(
+                    f"scanner_noise_dirty_drum_ksize {_ksize_raw} has even component(s); "
+                    f"clamped to {_ksize} (cv2.GaussianBlur requires odd dimensions)",
+                    UserWarning,
+                )
             members.append(DirtyDrum(
                 line_width_range=tuple(args.scanner_noise_dirty_drum_line_width),
                 line_concentration=args.scanner_noise_dirty_drum_line_concentration,
                 direction=args.scanner_noise_dirty_drum_direction,
                 noise_intensity=args.scanner_noise_dirty_drum_noise_intensity,
                 noise_value=tuple(args.scanner_noise_dirty_drum_noise_value),
-                ksize=tuple(args.scanner_noise_dirty_drum_ksize),
+                ksize=_ksize,
                 p=1.0,
             ))
         if args.scanner_noise_dirty_screen:
