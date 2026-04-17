@@ -18,6 +18,7 @@ Set any OneOf membership flag (e.g. scanner_noise_dirty_drum) to 0 to exclude it
 Different presets are different config files — there is no --pipeline choice.
 """
 
+import copy
 import random
 import warnings
 import cv2
@@ -72,6 +73,10 @@ _MARKUP_TYPES = ["strikethrough", "crossed", "underline", "highlight"]
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 _INK_TYPES = ["pencil", "pen", "marker", "highlighter"]
+
+# Augmentations suppressed when faxify fires (profile-sampling mutex).
+# Only active when faxify_profile_sampling=1 and faxify_p > 0.
+_FAXIFY_MUTEX_P_ATTRS = ["scanner_noise_p", "shadow_cast_p", "stains_p"]
 
 
 def _resolve_markup_ink(args):
@@ -416,7 +421,7 @@ def _build_per_image_pipeline(args, ink_phase, base_paper_phase, post_phase):
     )
 
 
-def _apply_page_sampled_augmentations(img, args):
+def _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=None):
     """Apply per-image profile-sampled augmentations (post-pipeline).
 
     SubtleNoise: adds small uniform channel offsets, safe post-pipeline.
@@ -477,7 +482,8 @@ def _apply_page_sampled_augmentations(img, args):
             )(result)
 
     if args.faxify_profile_sampling and args.faxify_p > 0:
-        if np.random.random() < args.faxify_p:
+        fire = faxify_pre_rolled if faxify_pre_rolled is not None else (np.random.random() < args.faxify_p)
+        if fire:
             # Profiles: 0=mono-only, 1=halftone-only, 2=both
             weights = np.array(args.faxify_profile_weights, dtype=float)
             idx = np.random.choice(len(weights), p=weights / weights.sum())
@@ -545,6 +551,19 @@ def _build_paper_phase(args) -> list:
         ))
 
     return phase
+
+
+def _build_post_phase_no_mutex(args) -> list:
+    """Build post phase with faxify-mutex augmentations disabled.
+
+    When faxify fires and faxify_profile_sampling=1, scanner_noise, shadow_cast,
+    and stains are suppressed for that image's pipeline so they never co-occur with
+    faxify (which tends to make text unreadable when combined).
+    """
+    args_no_mutex = copy.copy(args)
+    for attr in _FAXIFY_MUTEX_P_ATTRS:
+        setattr(args_no_mutex, attr, 0.0)
+    return _build_post_phase(args_no_mutex)
 
 
 def _resolve_monochrome_method(args):
@@ -757,24 +776,44 @@ def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, args, num_augmentati
     out_subdir = output_dir if flat else output_dir / pdf_path.stem
     out_subdir.mkdir(parents=True, exist_ok=True)
 
-    # Pre-build reusable phases for per-image pipeline construction (color_paper page sampling).
-    # ColorPaper is sampled once per augmented image and placed in the paper phase so it
-    # only colours the blank canvas — before ink compositing.
+    # Pre-build reusable phases for per-image pipeline construction.
+    # Two flags can trigger dynamic (per-image) pipeline building:
+    #   color_paper_page_sampling: ColorPaper profile is sampled once per image.
+    #   faxify_mutex_active: when faxify fires, scanner_noise/shadow_cast/stains are suppressed
+    #     by swapping in a stripped-down post phase built without those augmentations.
     _use_per_image_pipeline = args.color_paper_page_sampling and args.color_paper_p > 0
-    if _use_per_image_pipeline:
+    _faxify_mutex_active = bool(getattr(args, "faxify_profile_sampling", 0)) and args.faxify_p > 0
+    _use_dynamic_pipeline = _use_per_image_pipeline or _faxify_mutex_active
+
+    if _use_dynamic_pipeline:
         _ink_phase = _build_ink_phase(args)
         _base_paper_phase = _build_paper_phase(args)  # ColorPaper already excluded
         _post_phase = _build_post_phase(args)
+        if _faxify_mutex_active:
+            # Build no-mutex variants for both phases: stains lives in the paper phase,
+            # scanner_noise and shadow_cast live in the post phase.
+            _args_no_mutex = copy.copy(args)
+            for _attr in _FAXIFY_MUTEX_P_ATTRS:
+                setattr(_args_no_mutex, _attr, 0.0)
+            _base_paper_phase_no_mutex = _build_paper_phase(_args_no_mutex)
+            _post_phase_no_mutex = _build_post_phase(_args_no_mutex)
 
     for page_idx, pil_page in enumerate(pages):
         img = cv2.cvtColor(np.array(pil_page), cv2.COLOR_RGB2BGR)
         for aug_idx in range(num_augmentations):
-            if _use_per_image_pipeline:
-                aug_pipeline = _build_per_image_pipeline(args, _ink_phase, _base_paper_phase, _post_phase)
+            # Pre-roll faxify for mutex: decides the pipeline post_phase before augraphy runs
+            faxify_pre_rolled = None
+            if _faxify_mutex_active:
+                faxify_pre_rolled = np.random.random() < args.faxify_p
+
+            if _use_dynamic_pipeline:
+                active_paper = _base_paper_phase_no_mutex if faxify_pre_rolled else _base_paper_phase
+                active_post = _post_phase_no_mutex if faxify_pre_rolled else _post_phase
+                aug_pipeline = _build_per_image_pipeline(args, _ink_phase, active_paper, active_post)
             else:
                 aug_pipeline = pipeline
             augmented = aug_pipeline(img)
-            augmented = _apply_page_sampled_augmentations(augmented, args)
+            augmented = _apply_page_sampled_augmentations(augmented, args, faxify_pre_rolled=faxify_pre_rolled)
             out_path = out_subdir / f"page_{page_idx:03d}_aug_{aug_idx:03d}.png"
             cv2.imwrite(str(out_path), augmented)
             saved += 1

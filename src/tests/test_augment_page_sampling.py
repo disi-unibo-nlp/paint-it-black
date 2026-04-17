@@ -20,6 +20,7 @@ from dataprep.augment_pdfs import (
     _apply_page_sampled_augmentations,
     _build_paper_phase,
     _build_post_phase,
+    _build_post_phase_no_mutex,
     _build_ink_phase,
     _build_per_image_pipeline,
     RealisticMarkup,
@@ -434,6 +435,117 @@ def test_large_word_mode_no_full_width_annotation():
     print("PASS test_large_word_mode_no_full_width_annotation")
 
 
+# ── Faxify mutex tests ────────────────────────────────────────────────────────
+
+def test_faxify_mutex_post_phase_excludes_scanner_noise_shadow_stains():
+    """_build_post_phase_no_mutex should omit scanner_noise and shadow_cast from the post phase.
+
+    When faxify fires, the pipeline for that image uses this stripped-down post phase.
+    scanner_noise (OneOf) and shadow_cast live in the post phase and are removed here.
+    stains lives in the paper phase and is suppressed separately in augment_pdf via the
+    same _FAXIFY_MUTEX_P_ATTRS list applied to _build_paper_phase.
+    subtle_noise_p is set to 0.0 to isolate the entries under test.
+    """
+    args = base_args(
+        scanner_noise_p=0.8,
+        scanner_noise_bad_photo_copy=1,
+        scanner_noise_bad_photo_copy_noise_type=-1,
+        scanner_noise_bad_photo_copy_noise_side="random",
+        scanner_noise_bad_photo_copy_noise_iter=[1, 2],
+        scanner_noise_bad_photo_copy_noise_size=[1, 3],
+        scanner_noise_bad_photo_copy_noise_value=[32, 96],
+        scanner_noise_bad_photo_copy_sparsity=[0.3, 0.6],
+        scanner_noise_bad_photo_copy_concentration=[0.1, 0.5],
+        scanner_noise_bad_photo_copy_blur_noise=-1,
+        scanner_noise_bad_photo_copy_wave_pattern=-1,
+        scanner_noise_bad_photo_copy_edge_effect=-1,
+        scanner_noise_dirty_rollers=0,
+        scanner_noise_dirty_drum=0,
+        scanner_noise_dirty_screen=0,
+        shadow_cast_p=0.8,
+        shadow_cast_side="random",
+        shadow_cast_vertices_range=[1, 2],
+        shadow_cast_width_range=[0.1, 0.3],
+        shadow_cast_height_range=[0.1, 0.3],
+        shadow_cast_opacity_range=[0.1, 0.3],
+        shadow_cast_iterations_range=[1, 1],
+        shadow_cast_blur_kernel_range=[51, 101],
+        stains_p=0.8,
+        stains_type="random",
+        stains_blend_method="darken",
+        stains_blend_alpha=0.2,
+        subtle_noise_p=0.0,  # isolate: avoid SubtleNoise appearing in post phase
+    )
+    phase_full = _build_post_phase(args)
+    phase_no_mutex = _build_post_phase_no_mutex(args)
+    assert len(phase_no_mutex) == len(phase_full) - 2, (
+        f"No-mutex post phase should have 2 fewer entries (scanner_noise OneOf + shadow_cast), "
+        f"got full={len(phase_full)}, no_mutex={len(phase_no_mutex)}"
+    )
+    print("PASS test_faxify_mutex_post_phase_excludes_scanner_noise_shadow_stains")
+
+
+def test_faxify_pre_rolled_false_suppresses_faxify():
+    """When faxify_pre_rolled=False, faxify must not fire even when faxify_p=1.0.
+
+    augment_pdf pre-rolls the faxify die before the pipeline runs. If the die says
+    no-faxify, _apply_page_sampled_augmentations must respect that even though its
+    own re-roll at p=1.0 would always fire.
+    """
+    call_order = []
+
+    def tracking_faxify_call(self, image, **kwargs):
+        call_order.append("faxify")
+        return image
+
+    args = base_args(
+        faxify_p=1.0,
+        faxify_profile_sampling=1,
+        faxify_profile_weights=[1.0, 0.0, 0.0],
+        faxify_monochrome_methods=[],
+        subtle_noise_page_sampling=0,
+        subtle_noise_p=0.0,
+        annotations_p=0.0,
+    )
+    img = white_image()
+    with patch.object(Faxify, "__call__", tracking_faxify_call):
+        _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=False)
+    assert "faxify" not in call_order, (
+        "Faxify should not fire when faxify_pre_rolled=False, even with faxify_p=1.0"
+    )
+    print("PASS test_faxify_pre_rolled_false_suppresses_faxify")
+
+
+def test_faxify_pre_rolled_true_fires_faxify():
+    """When faxify_pre_rolled=True, faxify fires regardless of the random roll.
+
+    augment_pdf pre-rolls at p=faxify_p and passes the result. The function must
+    apply faxify unconditionally when told to, even if faxify_p is near-zero.
+    """
+    call_order = []
+
+    def tracking_faxify_call(self, image, **kwargs):
+        call_order.append("faxify")
+        return image
+
+    args = base_args(
+        faxify_p=0.01,  # near-zero — virtually never fires on its own
+        faxify_profile_sampling=1,
+        faxify_profile_weights=[1.0, 0.0, 0.0],
+        faxify_monochrome_methods=[],
+        subtle_noise_page_sampling=0,
+        subtle_noise_p=0.0,
+        annotations_p=0.0,
+    )
+    img = white_image()
+    with patch.object(Faxify, "__call__", tracking_faxify_call):
+        _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=True)
+    assert "faxify" in call_order, (
+        "Faxify should fire when faxify_pre_rolled=True, regardless of faxify_p"
+    )
+    print("PASS test_faxify_pre_rolled_true_fires_faxify")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -451,4 +563,7 @@ if __name__ == "__main__":
     test_per_image_pipeline_rng_not_reset_across_calls()
     test_apply_sampling_markup_before_faxify()
     test_large_word_mode_no_full_width_annotation()
+    test_faxify_mutex_post_phase_excludes_scanner_noise_shadow_stains()
+    test_faxify_pre_rolled_false_suppresses_faxify()
+    test_faxify_pre_rolled_true_fires_faxify()
     print("\nAll tests passed.")

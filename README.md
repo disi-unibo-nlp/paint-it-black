@@ -146,6 +146,17 @@ Four augmentations support this:
 
 ---
 
+**Faxify mutex**
+
+When `faxify_profile_sampling: 1` and `faxify_p > 0`, faxify is mutually exclusive
+with `scanner_noise`, `shadow_cast`, and `stains`. If faxify fires for a given image,
+those three augmentations are suppressed for that image's pipeline. Faxify probability
+is preserved exactly; the actual rate of the other augmentations is reduced
+proportionally (e.g. `scanner_noise_p: 0.1` with `faxify_p: 0.5` → effective scanner
+noise rate ≈ 0.05). The mutex is inactive when `faxify_profile_sampling: 0`.
+
+---
+
 **color_paper page sampling**
 
 | Key | Type | Default | Description |
@@ -364,8 +375,8 @@ The seed locks the entire augmentation sequence — same seed, same input, same 
 **Tuning individual augmentations**
 Use the example configs in `config/dataprep/examples/` to visualise each effect in isolation before tuning. Adjust the `_p` probability and parameter ranges in `augment_config.yaml`, then verify the change visually with `--num_augmentations 5 --log_level DEBUG` before running the full dataset.
 
-**Fax as a minority augmentation**
-Set `faxify_p` to a small value (e.g. `0.15–0.2`) and generate fax variants into a separate output directory, then merge them at a controlled ratio (~10–15% of total samples). Fax images are heavily degraded and, if over-represented, can pull the model toward expecting low-resolution monochrome inputs.
+**Faxify and readability**
+Faxify heavily degrades text and should not co-occur with scanner noise, shadow cast, or stains. When `faxify_profile_sampling: 1`, these are automatically suppressed for any image where faxify fires (see [Faxify mutex](#faxify-mutex)). Set `faxify_p` to control the desired fax rate directly; the other augmentations' actual rates will be reduced proportionally.
 
 **Output naming and dataset tracking**
 The `page_NNN_aug_MMM.png` filename pattern encodes both the original page index and the augmentation index. This makes it straightforward to: (a) group all variants of the same source page, (b) link augmented images back to their originals for annotation purposes, and (c) implement stratified splits that keep all variants of a page in the same fold.
