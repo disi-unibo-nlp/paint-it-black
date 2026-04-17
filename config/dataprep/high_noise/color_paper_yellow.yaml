@@ -14,14 +14,14 @@ seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/high_noise
 num_augmentations: 1
-dpi: 200
+dpi: 300
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 color_paper_p: 1.0
 color_paper_page_sampling: 1
 color_paper_num_profiles: 3
 color_paper_profile_weights: [1.0]
-color_paper_profile_hue_ranges: [20, 30]
+color_paper_profile_hue_ranges: [15, 25]
 color_paper_profile_saturation_ranges: [40, 80]
 
 # ── disabled ──────────────────────────────────────────────────────────────────

@@ -8,13 +8,13 @@ log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/high_noise
-num_augmentations: 6
-dpi: 200
+num_augmentations: 8
+dpi: 300
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 ink_bleed_p: 1.0
 ink_bleed_intensity_range: [0.65, 0.90]
-ink_bleed_kernel_size: [3, 8]
+ink_bleed_kernel_size: [3, 10]
 ink_bleed_severity: [0.40, 0.70]
 
 # ── disabled ──────────────────────────────────────────────────────────────────

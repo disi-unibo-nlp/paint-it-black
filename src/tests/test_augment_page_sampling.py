@@ -12,6 +12,7 @@ Tests cover:
 import sys
 import argparse
 import numpy as np
+from unittest.mock import patch
 
 sys.path.insert(0, "src")
 
@@ -21,8 +22,9 @@ from dataprep.augment_pdfs import (
     _build_post_phase,
     _build_ink_phase,
     _build_per_image_pipeline,
+    RealisticMarkup,
 )
-from augraphy import ColorPaper, SubtleNoise, AugmentationSequence
+from augraphy import ColorPaper, SubtleNoise, Faxify, AugmentationSequence
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -291,6 +293,147 @@ def test_weight_normalization():
     print("PASS test_weight_normalization")
 
 
+# ── Bug-fix regression tests ──────────────────────────────────────────────────
+
+def test_per_image_pipeline_rng_not_reset_across_calls():
+    """_build_per_image_pipeline must NOT reset the global RNG on each call.
+
+    Bug: AugraphyPipeline was created with random_seed=args.seed every iteration,
+    resetting np.random to seed=42 before each augmentation. Calls 2..N therefore
+    all drew from the same RNG state → identical annotation type/color in all outputs.
+
+    Fix: pass random_seed=None so the global RNG advances naturally across calls.
+    """
+    args = base_args(
+        color_paper_page_sampling=1,
+        color_paper_p=1.0,
+        color_paper_num_profiles=2,
+        color_paper_profile_weights=[1.0, 1.0],
+        color_paper_profile_hue_ranges=[10, 20, 80, 90],
+        color_paper_profile_saturation_ranges=[80, 100, 80, 100],
+    )
+    ink = _build_ink_phase(args)
+    paper = _build_paper_phase(args)
+    post = _build_post_phase(args)
+
+    np.random.seed(0)
+    # Warm-up call: consumes the seed-0 state and (with the bug) resets to seed=42.
+    _build_per_image_pipeline(args, ink, paper, post)
+
+    # Subsequent calls — with the bug these all reset to seed=42 before sampling,
+    # so np.random.choice always picks the same profile index.
+    profiles = []
+    for _ in range(10):
+        pipeline = _build_per_image_pipeline(args, ink, paper, post)
+        color_paper = pipeline.paper_phase.augmentations[0]
+        profiles.append(color_paper.hue_range[0])  # 10 (profile 0) or 80 (profile 1)
+
+    assert len(set(profiles)) > 1, (
+        f"Expected RNG to vary across per-image pipeline calls but all picked "
+        f"the same profile: {profiles}"
+    )
+    print("PASS test_per_image_pipeline_rng_not_reset_across_calls")
+
+
+def test_apply_sampling_markup_before_faxify():
+    """In _apply_page_sampled_augmentations, markup must run before faxify.
+
+    Bug: faxify (binarize) ran first, then markup drew colored annotations on top
+    of the already-monochrome image.
+
+    Fix: markup runs first, then subtle_noise, then faxify.
+    """
+    call_order = []
+
+    def tracking_markup_call(self, image, **kwargs):
+        call_order.append("markup")
+        return image  # pass-through
+
+    def tracking_faxify_call(self, image, **kwargs):
+        call_order.append("faxify")
+        return image  # pass-through
+
+    args = base_args(
+        annotations_p=1.0,
+        annotations_markup=1,
+        annotations_markup_sampling=1,
+        annotations_markup_large_word_mode=0,
+        annotations_markup_ink="pen",
+        annotations_markup_ink_weights=[0.0, 1.0, 0.0, 0.0],
+        annotations_markup_type_weights=[0.0, 0.0, 1.0, 0.0],
+        faxify_p=1.0,
+        faxify_profile_sampling=1,
+        faxify_profile_weights=[1.0, 0.0, 0.0],
+        faxify_monochrome_methods=[],
+        subtle_noise_page_sampling=0,
+        subtle_noise_p=0.0,
+    )
+    img = white_image()
+    np.random.seed(0)
+    with (
+        patch.object(RealisticMarkup, "__call__", tracking_markup_call),
+        patch.object(Faxify, "__call__", tracking_faxify_call),
+    ):
+        _apply_page_sampled_augmentations(img, args)
+
+    assert "markup" in call_order and "faxify" in call_order, (
+        f"Both markup and faxify should have been called, got: {call_order}"
+    )
+    markup_idx = call_order.index("markup")
+    faxify_idx = call_order.index("faxify")
+    assert markup_idx < faxify_idx, (
+        f"markup must run before faxify, but call order was: {call_order}"
+    )
+    print("PASS test_apply_sampling_markup_before_faxify")
+
+
+def test_large_word_mode_no_full_width_annotation():
+    """large_word_mode must not select full-width contours as annotation targets.
+
+    Bug: large_word_mode=True had no width or area limit, so a contour spanning
+    the full image width (e.g. a table border) passed the only check (check_height)
+    and produced a markup line spanning the entire document.
+
+    Fix: added area < shape[0]*shape[1]/10 and w < shape[1]/2 guards.
+    """
+    h, w = 300, 400
+    img = np.full((h, w, 3), 255, dtype=np.uint8)
+
+    # Small text-like rectangles (height 15px, width 20px) to establish character_height_average.
+    for x in range(0, w - 20, 30):
+        img[50:65, x:x + 20, :] = 0
+
+    # One full-width "merged paragraph" contour (height 15px, width ~380px).
+    img[150:165, 10:390, :] = 0
+
+    np.random.seed(42)
+    markup = RealisticMarkup(
+        num_lines_range=(100, 100),    # many attempts to ensure the wide contour would be hit
+        markup_length_range=(1.0, 1.0),
+        markup_thickness_range=(2, 2),
+        markup_type="underline",
+        markup_ink="pen",
+        markup_color=(255, 0, 0),      # blue (BGR) — easy to detect
+        large_word_mode=True,
+        single_word_mode=False,
+        repetitions=1,
+        control_points_range=(2, 2),
+        line_offset=0,
+        p=1.0,
+    )
+    result = markup(img.copy())
+
+    # Blue pixels: B channel high, G and R channels low
+    blue_pixels = np.sum(
+        (result[:, :, 0] > 200) & (result[:, :, 1] < 50) & (result[:, :, 2] < 50)
+    )
+    assert blue_pixels == 0, (
+        f"No blue annotation should be drawn on the full-width contour "
+        f"(w=380 > shape[1]/2=200), but found {blue_pixels} blue pixels."
+    )
+    print("PASS test_large_word_mode_no_full_width_annotation")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -305,4 +448,7 @@ if __name__ == "__main__":
     test_subtle_noise_low_range_changes_image()
     test_subtle_noise_high_range_changes_image()
     test_weight_normalization()
+    test_per_image_pipeline_rng_not_reset_across_calls()
+    test_apply_sampling_markup_before_faxify()
+    test_large_word_mode_no_full_width_annotation()
     print("\nAll tests passed.")

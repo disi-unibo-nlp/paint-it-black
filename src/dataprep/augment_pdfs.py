@@ -198,7 +198,14 @@ class RealisticMarkup(Markup):
                 )
 
             if large_word_mode:
-                conditions = check_height
+                # Add area and width guards to prevent page-spanning contours
+                # (e.g. table borders, merged paragraph blocks) from being selected.
+                # Limits are more lenient than non-large_word_mode (50% width vs 20%).
+                conditions = (
+                    check_height
+                    and w * h < (markup_image.shape[0] * markup_image.shape[1]) / 10
+                    and w < int(markup_image.shape[1] / 2)
+                )
             else:
                 conditions = (
                     choice
@@ -403,7 +410,7 @@ def _build_per_image_pipeline(args, ink_phase, base_paper_phase, post_phase):
         ink_phase=ink_phase,
         paper_phase=[sampled_color_paper] + list(base_paper_phase),
         post_phase=post_phase,
-        random_seed=args.seed,
+        random_seed=None,  # do NOT reset global RNG — seeded once in main() via set_seed()
         log=False,
     )
 
@@ -422,33 +429,10 @@ def _apply_page_sampled_augmentations(img, args):
     # All augmentations called here use p=1.0 and handle the _p probability manually so we
     # never assign None back to result.
 
-    if args.subtle_noise_page_sampling and args.subtle_noise_p > 0:
-        if np.random.random() < args.subtle_noise_p:
-            weights = np.array(args.subtle_noise_profile_weights, dtype=float)
-            idx = np.random.choice(len(weights), p=weights / weights.sum())
-            result = SubtleNoise(
-                subtle_range=args.subtle_noise_profile_ranges[idx],
-                p=1.0,
-            )(result)
-
-    if args.faxify_profile_sampling and args.faxify_p > 0:
-        if np.random.random() < args.faxify_p:
-            # Profiles: 0=mono-only, 1=halftone-only, 2=both
-            weights = np.array(args.faxify_profile_weights, dtype=float)
-            idx = np.random.choice(len(weights), p=weights / weights.sum())
-            mono = 1 if idx in (0, 2) else 0
-            halftone = 1 if idx in (1, 2) else 0
-            result = Faxify(
-                scale_range=tuple(args.faxify_scale_range),
-                monochrome=mono,
-                monochrome_method=_resolve_monochrome_method(args),
-                halftone=halftone,
-                half_kernel_size=tuple(args.faxify_half_kernel_size),
-                angle=tuple(args.faxify_angle),
-                sigma=tuple(args.faxify_sigma),
-                p=1.0,
-            )(result)
-
+    # Order: markup → subtle_noise → faxify
+    # Markup detects text contours on the cleanest possible image.
+    # SubtleNoise adds paper-level grain to the annotated document.
+    # Faxify binarizes/halftones last so it does not destroy annotation colors before they are drawn.
     if args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
         if np.random.random() < args.annotations_p:
             weights = np.array(args.annotations_markup_type_weights, dtype=float)
@@ -479,6 +463,33 @@ def _apply_page_sampled_augmentations(img, args):
                 repetitions=np.random.randint(args.annotations_markup_repetitions[0], args.annotations_markup_repetitions[1] + 1),
                 control_points_range=tuple(args.annotations_markup_control_points_range),
                 line_offset=args.annotations_markup_line_offset,
+                p=1.0,
+            )(result)
+
+    if args.subtle_noise_page_sampling and args.subtle_noise_p > 0:
+        if np.random.random() < args.subtle_noise_p:
+            weights = np.array(args.subtle_noise_profile_weights, dtype=float)
+            idx = np.random.choice(len(weights), p=weights / weights.sum())
+            result = SubtleNoise(
+                subtle_range=args.subtle_noise_profile_ranges[idx],
+                p=1.0,
+            )(result)
+
+    if args.faxify_profile_sampling and args.faxify_p > 0:
+        if np.random.random() < args.faxify_p:
+            # Profiles: 0=mono-only, 1=halftone-only, 2=both
+            weights = np.array(args.faxify_profile_weights, dtype=float)
+            idx = np.random.choice(len(weights), p=weights / weights.sum())
+            mono = 1 if idx in (0, 2) else 0
+            halftone = 1 if idx in (1, 2) else 0
+            result = Faxify(
+                scale_range=tuple(args.faxify_scale_range),
+                monochrome=mono,
+                monochrome_method=_resolve_monochrome_method(args),
+                halftone=halftone,
+                half_kernel_size=tuple(args.faxify_half_kernel_size),
+                angle=tuple(args.faxify_angle),
+                sigma=tuple(args.faxify_sigma),
                 p=1.0,
             )(result)
 

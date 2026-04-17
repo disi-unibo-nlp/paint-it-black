@@ -9,7 +9,7 @@ seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/low_noise
 num_augmentations: 3
-dpi: 200
+dpi: 300
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 subtle_noise_p: 1.0
