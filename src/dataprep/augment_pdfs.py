@@ -675,11 +675,15 @@ def _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=None, precomp
     # SubtleNoise adds paper-level grain to the annotated document.
     # Faxify binarizes/halftones last so it does not destroy annotation colors before they are drawn.
     if precomputed_markup is not None:
-        # Primary path: coordinates were detected on the original clean image in augment_pdf.
-        _markup_obj, _lines_coords = precomputed_markup
-        result = _markup_obj.draw_precomputed(result, _lines_coords)
+        # Primary path: augment_pdf set precomputed_markup.
+        # Non-empty tuple → probability passed; draw using pre-detected coordinates from the clean image.
+        # Empty tuple ()  → probability failed at augment_pdf level; skip to avoid a second roll below.
+        if precomputed_markup:
+            _markup_obj, _lines_coords = precomputed_markup
+            result = _markup_obj.draw_precomputed(result, _lines_coords)
     elif args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
-        # Fallback: augment_pdf did not supply precomputed_markup (e.g. called standalone).
+        # Fallback: called standalone (not from augment_pdf); precomputed_markup was never set.
+        # Detects and draws on whatever image arrives — appropriate for direct/test invocations.
         if np.random.random() < args.annotations_p:
             weights = np.array(args.annotations_markup_type_weights, dtype=float)
             markup_type = _MARKUP_TYPES[np.random.choice(len(weights), p=weights / weights.sum())]
@@ -740,6 +744,20 @@ def _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=None, precomp
                 p=1.0,
             )(result)
 
+    if getattr(args, "stains_profile_sampling", 0) and args.stains_p > 0:
+        # Faxify mutex: suppress stains when faxify fired this iteration.
+        # faxify_pre_rolled=True → faxify fired; False → faxify didn't fire; None → mutex inactive.
+        if not faxify_pre_rolled:
+            if np.random.random() < args.stains_p:
+                weights = np.array(args.stains_profile_weights, dtype=float)
+                idx = np.random.choice(len(weights), p=weights / weights.sum())
+                result = Stains(
+                    stains_type=args.stains_profile_types[idx],
+                    stains_blend_method=args.stains_profile_blend_methods[idx],
+                    stains_blend_alpha=args.stains_profile_blend_alphas[idx],
+                    p=1.0,
+                )(result)
+
     return result
 
 
@@ -770,7 +788,7 @@ def _build_paper_phase(args) -> list:
             p=args.texture_p,
         ))
 
-    if args.stains_p > 0:
+    if args.stains_p > 0 and not getattr(args, "stains_profile_sampling", 0):
         phase.append(Stains(
             stains_type=args.stains_type,
             stains_blend_method=args.stains_blend_method,
@@ -1055,6 +1073,7 @@ def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, args, num_augmentati
             if args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
                 if np.random.random() < args.annotations_p:
                     _weights = np.array(args.annotations_markup_type_weights, dtype=float)
+
                     _markup_type = _MARKUP_TYPES[np.random.choice(len(_weights), p=_weights / _weights.sum())]
                     _markup_ink = _resolve_markup_ink(args)
                     _color_args = {
@@ -1085,6 +1104,12 @@ def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, args, num_augmentati
                         p=1.0,
                     )
                     precomputed_markup = (_markup_obj, _markup_obj.precompute_lines(img))
+                else:
+                    # Probability failed: use empty tuple as sentinel so that the fallback
+                    # detection path in _apply_page_sampled_augmentations is not triggered.
+                    # Without this, the fallback re-rolls the probability and, when it passes,
+                    # runs detection on the already-degraded augmented image.
+                    precomputed_markup = ()
 
             if _use_dynamic_pipeline:
                 active_paper = _base_paper_phase_no_mutex if faxify_pre_rolled else _base_paper_phase
@@ -1190,6 +1215,12 @@ def main():
     parser.add_argument("--stains_type", type=str, default="random")
     parser.add_argument("--stains_blend_method", type=str, default="darken")
     parser.add_argument("--stains_blend_alpha", type=float, default=0.4)
+    parser.add_argument("--stains_profile_sampling", type=int, default=0)
+    parser.add_argument("--stains_num_profiles", type=int, default=1)
+    parser.add_argument("--stains_profile_weights", type=float, nargs="+", default=[1.0])
+    parser.add_argument("--stains_profile_types", type=str, nargs="+", default=["random"])
+    parser.add_argument("--stains_profile_blend_methods", type=str, nargs="+", default=["darken"])
+    parser.add_argument("--stains_profile_blend_alphas", type=float, nargs="+", default=[0.4])
 
     # watermark
     parser.add_argument("--watermark_p", type=float, default=0.25)

@@ -25,7 +25,7 @@ from dataprep.augment_pdfs import (
     _build_per_image_pipeline,
     RealisticMarkup,
 )
-from augraphy import ColorPaper, SubtleNoise, Faxify, AugmentationSequence
+from augraphy import ColorPaper, SubtleNoise, Faxify, AugmentationSequence, Stains
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -56,6 +56,15 @@ def base_args(**overrides):
         # other paper-phase args (needed by _build_paper_phase)
         texture_p=0.0,
         stains_p=0.0,
+        stains_type="random",
+        stains_blend_method="darken",
+        stains_blend_alpha=0.4,
+        stains_profile_sampling=0,
+        stains_num_profiles=1,
+        stains_profile_weights=[1.0],
+        stains_profile_types=["random"],
+        stains_profile_blend_methods=["darken"],
+        stains_profile_blend_alphas=[0.4],
         watermark_p=0.0,
         # ink-phase args (needed by _build_ink_phase)
         ink_bleed_p=0.0,
@@ -705,6 +714,140 @@ def test_apply_page_sampled_augmentations_legacy_path_unchanged():
     print("PASS test_apply_page_sampled_augmentations_legacy_path_unchanged")
 
 
+def test_empty_tuple_sentinel_suppresses_fallback():
+    """precomputed_markup=() (probability failed in augment_pdf) must not trigger the fallback.
+
+    Bug: when annotations_p < 1.0, augment_pdf only sets precomputed_markup when the
+    probability check passes. When it fails, precomputed_markup remains None, which
+    causes _apply_page_sampled_augmentations to enter the elif fallback and re-roll —
+    running detection on the already-degraded augmented image (~25% of the time).
+
+    Fix: augment_pdf sets precomputed_markup=() when the probability fails. The
+    if-block below handles it without falling through to the elif fallback.
+    """
+    from unittest.mock import MagicMock
+
+    img = white_image()
+    args = base_args(
+        annotations_markup=1,
+        annotations_markup_sampling=1,
+        annotations_p=1.0,  # would fire via fallback
+        subtle_noise_p=0.0,
+        faxify_p=0.0,
+    )
+    # Spy on the fallback constructor to confirm it is never called
+    with patch("dataprep.augment_pdfs.RealisticMarkup") as mock_markup_cls:
+        _apply_page_sampled_augmentations(img, args, precomputed_markup=())
+
+    assert mock_markup_cls.call_count == 0, (
+        "RealisticMarkup should NOT be constructed when precomputed_markup=() "
+        "(empty-tuple sentinel means the probability already failed at augment_pdf level)"
+    )
+    print("PASS test_empty_tuple_sentinel_suppresses_fallback")
+
+
+# ── Stains profile sampling tests ────────────────────────────────────────────
+
+def test_stains_profile_sampling_off_stains_in_pipeline():
+    """When stains_profile_sampling=0, Stains should appear in the paper phase."""
+    args = base_args(stains_p=0.5, stains_profile_sampling=0)
+    phase = _build_paper_phase(args)
+    types = [type(aug) for aug in phase]
+    assert Stains in types, "Stains should be in the paper phase when stains_profile_sampling=0"
+    print("PASS test_stains_profile_sampling_off_stains_in_pipeline")
+
+
+def test_stains_profile_sampling_on_stains_not_in_pipeline():
+    """When stains_profile_sampling=1, Stains should NOT appear in the paper phase."""
+    args = base_args(stains_p=0.5, stains_profile_sampling=1)
+    phase = _build_paper_phase(args)
+    types = [type(aug) for aug in phase]
+    assert Stains not in types, "Stains should NOT be in the paper phase when stains_profile_sampling=1"
+    print("PASS test_stains_profile_sampling_on_stains_not_in_pipeline")
+
+
+def test_stains_profile_fires_when_p1():
+    """With stains_p=1.0 and stains_profile_sampling=1, Stains is called once per invocation."""
+    img = white_image()
+    args = base_args(
+        stains_p=1.0,
+        stains_profile_sampling=1,
+        stains_num_profiles=1,
+        stains_profile_weights=[1.0],
+        stains_profile_types=["fine_stains"],
+        stains_profile_blend_methods=["darken"],
+        stains_profile_blend_alphas=[0.2],
+        subtle_noise_p=0.0,
+        faxify_p=0.0,
+        annotations_p=0.0,
+    )
+    with patch("dataprep.augment_pdfs.Stains") as mock_cls:
+        mock_cls.return_value.return_value = img.copy()
+        _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=False)
+    assert mock_cls.call_count == 1, (
+        f"Stains should be called once when stains_p=1.0 and faxify_pre_rolled=False, "
+        f"got call_count={mock_cls.call_count}"
+    )
+    print("PASS test_stains_profile_fires_when_p1")
+
+
+def test_stains_profile_suppressed_when_faxify_fires():
+    """When faxify_pre_rolled=True, stains profile sampling must not apply Stains."""
+    img = white_image()
+    args = base_args(
+        stains_p=1.0,
+        stains_profile_sampling=1,
+        stains_num_profiles=1,
+        stains_profile_weights=[1.0],
+        stains_profile_types=["fine_stains"],
+        stains_profile_blend_methods=["darken"],
+        stains_profile_blend_alphas=[0.2],
+        subtle_noise_p=0.0,
+        faxify_p=0.0,
+        annotations_p=0.0,
+    )
+    with patch("dataprep.augment_pdfs.Stains") as mock_cls:
+        mock_cls.return_value.return_value = img.copy()
+        _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=True)
+    assert mock_cls.call_count == 0, (
+        f"Stains should be suppressed when faxify_pre_rolled=True (mutex), "
+        f"got call_count={mock_cls.call_count}"
+    )
+    print("PASS test_stains_profile_suppressed_when_faxify_fires")
+
+
+def test_stains_profile_selects_correct_profile():
+    """weights=[1.0, 0.0] always picks profile 0; the correct type/method/alpha are passed."""
+    img = white_image()
+    args = base_args(
+        stains_p=1.0,
+        stains_profile_sampling=1,
+        stains_num_profiles=2,
+        stains_profile_weights=[1.0, 0.0],
+        stains_profile_types=["fine_stains", "rough_stains"],
+        stains_profile_blend_methods=["darken", "multiply"],
+        stains_profile_blend_alphas=[0.15, 0.5],
+        subtle_noise_p=0.0,
+        faxify_p=0.0,
+        annotations_p=0.0,
+    )
+    with patch("dataprep.augment_pdfs.Stains") as mock_cls:
+        mock_cls.return_value.return_value = img.copy()
+        _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=False)
+    assert mock_cls.call_count == 1, f"Expected Stains called once, got {mock_cls.call_count}"
+    call_kwargs = mock_cls.call_args.kwargs
+    assert call_kwargs["stains_type"] == "fine_stains", (
+        f"Expected stains_type='fine_stains' (profile 0), got {call_kwargs['stains_type']!r}"
+    )
+    assert call_kwargs["stains_blend_method"] == "darken", (
+        f"Expected stains_blend_method='darken' (profile 0), got {call_kwargs['stains_blend_method']!r}"
+    )
+    assert call_kwargs["stains_blend_alpha"] == 0.15, (
+        f"Expected stains_blend_alpha=0.15 (profile 0), got {call_kwargs['stains_blend_alpha']}"
+    )
+    print("PASS test_stains_profile_selects_correct_profile")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -730,4 +873,10 @@ if __name__ == "__main__":
     test_draw_precomputed_dark_color_preserved()
     test_apply_page_sampled_augmentations_uses_precomputed_markup()
     test_apply_page_sampled_augmentations_legacy_path_unchanged()
+    test_empty_tuple_sentinel_suppresses_fallback()
+    test_stains_profile_sampling_off_stains_in_pipeline()
+    test_stains_profile_sampling_on_stains_not_in_pipeline()
+    test_stains_profile_fires_when_p1()
+    test_stains_profile_suppressed_when_faxify_fires()
+    test_stains_profile_selects_correct_profile()
     print("\nAll tests passed.")
