@@ -27,7 +27,7 @@ ink_bleed_kernel_size: [3, 8]
 ink_bleed_severity: [0.40, 0.70]
 
 # ── ink mottling ─────────────────────────────────────────────────────────────────
-ink_mottling_p: 0.7
+ink_mottling_p: 0.5
 ink_mottling_alpha_range: [0.28, 0.50]
 ink_mottling_noise_scale_range: [2, 8]
 ink_mottling_gaussian_kernel_range: [5, 21]
@@ -70,7 +70,7 @@ subtle_noise_profile_weights: [0.50, 0.50]
 subtle_noise_profile_ranges:  [18, 30]
 
 # ── annotations ─────────────────────────────────────────────────────────────────
-annotations_p: 0.35
+annotations_p: 0.5
 annotations_markup: 1
 annotations_markup_sampling: 1
 annotations_markup_large_word_mode: 1
@@ -91,7 +91,7 @@ annotations_markup_line_offset: 4               # y-jitter per point in pixels
 annotations_scribbles: 0
 
 # ── faxify ─────────────────────────────────────────────────────────────────
-faxify_p: 1.0
+faxify_p: 0.5
 faxify_profile_sampling: 1
 faxify_profile_weights: [0.4, 0.4, 0.2] # mono-only, halftone-only, both
 faxify_scale_range: [0.5, 1.5]
@@ -101,24 +101,24 @@ faxify_angle: [0, 360]
 faxify_sigma: [1.0, 3.0]
 
 # ── scanner noise ─────────────────────────────────────────────────────────────────
-scanner_noise_p: 1.0
+scanner_noise_p: 0.0
 scanner_noise_bad_photo_copy: 1
 scanner_noise_bad_photo_copy_noise_type: -1
 scanner_noise_bad_photo_copy_noise_side: random
 scanner_noise_bad_photo_copy_noise_iter: [1, 3]
-scanner_noise_bad_photo_copy_noise_size: [1, 4]
-scanner_noise_bad_photo_copy_noise_value: [20, 110]
-scanner_noise_bad_photo_copy_sparsity: [0.2, 0.7]
-scanner_noise_bad_photo_copy_concentration: [0.1, 0.6]
+scanner_noise_bad_photo_copy_noise_size: [1, 1]
+scanner_noise_bad_photo_copy_noise_value: [10, 60]
+scanner_noise_bad_photo_copy_sparsity: [0.4, 0.7]
+scanner_noise_bad_photo_copy_concentration: [0.1, 0.3]
 scanner_noise_bad_photo_copy_blur_noise: -1
 scanner_noise_bad_photo_copy_wave_pattern: -1
 scanner_noise_bad_photo_copy_edge_effect: -1
 
-scanner_noise_dirty_rollers: 1
+scanner_noise_dirty_rollers: 0
 scanner_noise_dirty_rollers_line_width: [2, 12]
 scanner_noise_dirty_rollers_scanline_type: 0
 
-scanner_noise_dirty_drum: 1
+scanner_noise_dirty_drum: 0
 scanner_noise_dirty_drum_line_width: [1, 3]
 scanner_noise_dirty_drum_line_concentration: 0.12
 scanner_noise_dirty_drum_direction: -1
@@ -126,14 +126,14 @@ scanner_noise_dirty_drum_noise_intensity: 0.5
 scanner_noise_dirty_drum_noise_value: [0, 40]
 scanner_noise_dirty_drum_ksize: [3, 3]
 
-scanner_noise_dirty_screen: 1
+scanner_noise_dirty_screen: 0
 scanner_noise_dirty_screen_n_clusters: [15, 40]
 scanner_noise_dirty_screen_n_samples: [2, 10]
 scanner_noise_dirty_screen_std_range: [1, 4]
 scanner_noise_dirty_screen_value_range: [130, 240]
 
 # ── shadow cast ─────────────────────────────────────────────────────────────────
-shadow_cast_p: 1.0
+shadow_cast_p: 0.4
 shadow_cast_side: random
 shadow_cast_vertices_range: [2, 12]
 shadow_cast_width_range: [0.05, 0.90]
@@ -143,10 +143,10 @@ shadow_cast_iterations_range: [1, 3]
 shadow_cast_blur_kernel_range: [51, 401]
 
 # ── stains ─────────────────────────────────────────────────────────────────
-stains_p: 1.0
+stains_p: 0.4
 stains_type: fine_stains
 stains_blend_method: darken
-stains_blend_alpha: 0.2
+stains_blend_alpha: 0.1
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 bleed_through_p: 0.0

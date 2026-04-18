@@ -546,6 +546,165 @@ def test_faxify_pre_rolled_true_fires_faxify():
     print("PASS test_faxify_pre_rolled_true_fires_faxify")
 
 
+# ── precompute / draw_precomputed tests ──────────────────────────────────────
+
+def test_precompute_lines_returns_list_on_white_image():
+    """precompute_lines on a blank image returns an empty list (no qualifying contours).
+
+    A white image has no text, so the contour detector finds nothing annotatable.
+    The important thing is that the function does not crash and returns a list.
+    """
+    markup = RealisticMarkup(
+        num_lines_range=(1, 4),
+        markup_length_range=(1.0, 1.0),
+        markup_thickness_range=(1, 2),
+        markup_type="underline",
+        markup_ink="pen",
+        markup_color=(0, 0, 64),
+        large_word_mode=True,
+        single_word_mode=False,
+        repetitions=1,
+        control_points_range=(2, 3),
+        line_offset=3,
+        p=1.0,
+    )
+    result = markup.precompute_lines(white_image(h=300, w=300))
+    assert isinstance(result, list), f"Expected list, got {type(result)}"
+    assert result == [], f"Expected empty list on blank image, got {len(result)} entries"
+    print("PASS test_precompute_lines_returns_list_on_white_image")
+
+
+def test_draw_precomputed_noop_on_empty_coords():
+    """draw_precomputed with an empty coordinate list returns the image pixel-identical."""
+    np.random.seed(0)
+    img = white_image()
+    markup = RealisticMarkup(
+        num_lines_range=(1, 1),
+        markup_length_range=(1.0, 1.0),
+        markup_thickness_range=(1, 2),
+        markup_type="underline",
+        markup_ink="pen",
+        markup_color=(0, 0, 64),
+        large_word_mode=True,
+        single_word_mode=False,
+        repetitions=1,
+        control_points_range=(2, 3),
+        line_offset=3,
+        p=1.0,
+    )
+    result = markup.draw_precomputed(img, [])
+    assert np.array_equal(result, img), "draw_precomputed should be a no-op when lines_coordinates=[]"
+    print("PASS test_draw_precomputed_noop_on_empty_coords")
+
+
+def test_draw_precomputed_dark_color_preserved():
+    """draw_precomputed (ink_min_brightness=0) preserves dark ink colours.
+
+    ink_min_brightness=1 with value_range=(150, 200) in the old __call__ path
+    brightened every pixel darker than HSV-V=150 — washing out dark blue ink to
+    near-white. With ink_min_brightness=0 the dark pixels must survive.
+    """
+    import cv2
+    np.random.seed(0)
+    img = np.full((200, 200, 3), 255, dtype=np.uint8)
+    # Synthetic horizontal line near the image centre
+    xs = np.linspace(60, 140, 10).astype(int)
+    line = np.column_stack((xs, np.full(10, 100, dtype=int)))
+    lines_coordinates = [line]
+
+    markup = RealisticMarkup(
+        num_lines_range=(1, 1),
+        markup_length_range=(1.0, 1.0),
+        markup_thickness_range=(2, 3),
+        markup_type="underline",
+        markup_ink="pen",
+        markup_color=(0, 0, 64),  # dark blue (BGR); HSV-V ≈ 64 when unmodified
+        large_word_mode=True,
+        single_word_mode=False,
+        repetitions=1,
+        control_points_range=(2, 3),
+        line_offset=2,
+        p=1.0,
+    )
+    result = markup.draw_precomputed(img, lines_coordinates)
+    result_hsv = cv2.cvtColor(result, cv2.COLOR_BGR2HSV)
+    min_v = int(result_hsv[:, :, 2].min())
+    assert min_v < 100, (
+        f"Expected a dark pixel (HSV-V < 100) from dark blue ink, got min V={min_v}. "
+        "ink_min_brightness=0 fix may have regressed."
+    )
+    print("PASS test_draw_precomputed_dark_color_preserved")
+
+
+def test_apply_page_sampled_augmentations_uses_precomputed_markup():
+    """When precomputed_markup is supplied, draw_precomputed is called and precompute_lines is not.
+
+    This verifies that _apply_page_sampled_augmentations delegates to draw_precomputed
+    (the new path) without re-running contour detection on the augmented image.
+    """
+    from unittest.mock import MagicMock
+
+    np.random.seed(0)
+    img = white_image()
+    markup_obj = RealisticMarkup(
+        num_lines_range=(1, 1),
+        markup_length_range=(1.0, 1.0),
+        markup_thickness_range=(1, 2),
+        markup_type="underline",
+        markup_ink="pen",
+        markup_color=(0, 0, 0),
+        large_word_mode=True,
+        single_word_mode=False,
+        repetitions=1,
+        control_points_range=(2, 3),
+        line_offset=3,
+        p=1.0,
+    )
+    markup_obj.draw_precomputed = MagicMock(return_value=img.copy())
+    markup_obj.precompute_lines = MagicMock(return_value=[])
+
+    precomputed_markup = (markup_obj, [])
+    args = base_args(
+        annotations_markup=1,
+        annotations_markup_sampling=1,
+        annotations_p=1.0,
+        subtle_noise_p=0.0,
+        faxify_p=0.0,
+    )
+    _apply_page_sampled_augmentations(img, args, precomputed_markup=precomputed_markup)
+
+    assert markup_obj.draw_precomputed.call_count == 1, (
+        f"draw_precomputed should be called exactly once, got {markup_obj.draw_precomputed.call_count}"
+    )
+    assert markup_obj.precompute_lines.call_count == 0, (
+        "precompute_lines should NOT be called inside _apply_page_sampled_augmentations "
+        "(detection must happen before the pipeline in augment_pdf)"
+    )
+    print("PASS test_apply_page_sampled_augmentations_uses_precomputed_markup")
+
+
+def test_apply_page_sampled_augmentations_legacy_path_unchanged():
+    """With precomputed_markup=None and annotations_p=0, the function is a no-op.
+
+    Verifies the legacy fallback path (precomputed_markup not supplied) does not
+    crash and leaves the image unchanged when the probability gate is 0.
+    """
+    np.random.seed(0)
+    img = white_image()
+    args = base_args(
+        annotations_markup=1,
+        annotations_markup_sampling=1,
+        annotations_p=0.0,  # gate closed — no markup should fire
+        subtle_noise_p=0.0,
+        faxify_p=0.0,
+    )
+    result = _apply_page_sampled_augmentations(img, args, precomputed_markup=None)
+    assert np.array_equal(result, img), (
+        "Image should be unchanged when precomputed_markup=None and annotations_p=0"
+    )
+    print("PASS test_apply_page_sampled_augmentations_legacy_path_unchanged")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -566,4 +725,9 @@ if __name__ == "__main__":
     test_faxify_mutex_post_phase_excludes_scanner_noise_shadow_stains()
     test_faxify_pre_rolled_false_suppresses_faxify()
     test_faxify_pre_rolled_true_fires_faxify()
+    test_precompute_lines_returns_list_on_white_image()
+    test_draw_precomputed_noop_on_empty_coords()
+    test_draw_precomputed_dark_color_preserved()
+    test_apply_page_sampled_augmentations_uses_precomputed_markup()
+    test_apply_page_sampled_augmentations_legacy_path_unchanged()
     print("\nAll tests passed.")

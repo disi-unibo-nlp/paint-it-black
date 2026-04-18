@@ -321,6 +321,236 @@ class RealisticMarkup(Markup):
         else:
             return markup_image
 
+    def precompute_lines(self, image):
+        """Detect text lines on a (clean) image; return coordinate arrays for draw_precomputed.
+
+        Designed to be called on the original document image before any augmentation so
+        that line placement is determined from clean text contours, not from ink-bled,
+        stain-covered, or noise-degraded versions of the page.
+
+        Resolves markup_color and markup_type once and stores them on self
+        (_precomputed_markup_color, _precomputed_markup_type) so draw_precomputed can
+        use the same values.
+
+        Returns a list of coordinate arrays (empty list if no qualifying contours found).
+        """
+        # Resolve markup_color from the clean image ("contrast" uses original background)
+        if self.markup_color == "random":
+            self._precomputed_markup_color = (
+                random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+            )
+        elif self.markup_color == "contrast":
+            single_color = cv2.resize(image, (1, 1), interpolation=cv2.INTER_AREA)
+            self._precomputed_markup_color = (255 - single_color[0][0]).tolist()
+        else:
+            self._precomputed_markup_color = self.markup_color
+
+        # Resolve markup_type (may be "random" when called from non-sampling path)
+        if self.markup_type == "random":
+            self._precomputed_markup_type = random.choice(
+                ["strikethrough", "crossed", "underline", "highlight"]
+            )
+        else:
+            self._precomputed_markup_type = self.markup_type
+
+        if self.large_word_mode == "random":
+            large_word_mode = random.choice([True, False])
+        else:
+            large_word_mode = self.large_word_mode
+
+        num_lines = random.randint(self.num_lines_range[0], self.num_lines_range[1])
+        markup_type = self._precomputed_markup_type
+
+        # Normalise image to BGR 3-channel for _preprocess
+        img_bgr = image
+        if len(image.shape) < 3:
+            img_bgr = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        elif image.shape[2] == 4:
+            img_bgr = image[:, :, :3]
+
+        binary_image = self._preprocess(img_bgr)
+
+        contours, hierarchy = cv2.findContours(
+            binary_image,
+            cv2.RETR_LIST,
+            cv2.CHAIN_APPROX_NONE,
+        )
+
+        heights = []
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            heights.append(h)
+
+        if not heights or len(np.unique(heights)) < 2:
+            character_height_average = -1
+            height_range = -1
+        else:
+            bins = np.unique(heights)
+            hist, bin_edges = np.histogram(heights, bins=bins, density=False)
+            if len(bin_edges) > 1 and np.max(hist) > 20:
+                character_height_min = bin_edges[np.argmax(hist)]
+                character_height_max = bin_edges[np.argmax(hist) + 1]
+                character_height_average = int((character_height_max + character_height_min) / 2)
+                height_range = ((character_height_max - character_height_min) / 2) + 1
+                # Clean images produce many tiny binary artefacts (serifs, noise, 1-3px dots)
+                # that dominate the histogram with h=2-5, making the height window (0, 6)
+                # which rejects all actual text line contours.  When the modal height is
+                # clearly sub-character, discard the histogram estimate and fall back to the
+                # simple h>10 check so real text contours are not filtered out.
+                if character_height_average < 10:
+                    character_height_average = -1
+                    height_range = -1
+            else:
+                character_height_average = -1
+                height_range = -1
+
+        lines_coordinates = []
+
+        if len(contours) > 0:
+            contours = list(contours)
+            random.shuffle(contours)
+
+        for cnt in contours:
+            choice = random.choice([False, True])
+            x, y, w, h = cv2.boundingRect(cnt)
+
+            if character_height_average == -1:
+                check_height = h > 10
+            else:
+                check_height = (h > character_height_average - height_range) and (
+                    h < character_height_average + height_range
+                )
+
+            if large_word_mode:
+                conditions = (
+                    check_height
+                    and w * h < (img_bgr.shape[0] * img_bgr.shape[1]) / 10
+                    and w < int(img_bgr.shape[1] / 2)
+                )
+            else:
+                conditions = (
+                    choice
+                    and (w > h * 2)
+                    and (w * h < (img_bgr.shape[0] * img_bgr.shape[1]) / 10)
+                    and w < int(img_bgr.shape[1] / 5)
+                    and check_height
+                )
+
+            if conditions:
+                if num_lines == 0:
+                    break
+                num_lines = num_lines - 1
+                markup_length = random.uniform(self.markup_length_range[0], self.markup_length_range[1])
+                original_w = w
+                w = int(original_w * markup_length)
+                x = int(x + (original_w - w) // 2)
+
+                offset = 6
+
+                if markup_type == "strikethrough" or markup_type == "highlight":
+                    starting_point = [x, int(y + (h / 2))]
+                    ending_point = [x + w, int(y + (h / 2))]
+                elif markup_type == "crossed":
+                    starting_point = [x, y]
+                    ending_point = [x + w, y + h]
+                else:
+                    starting_point = [x, y + h]
+                    ending_point = [x + w, y + h]
+
+                for i in range(self.repetitions):
+                    if markup_type == "crossed":
+                        ysize, xsize = img_bgr.shape[:2]
+                        p1_x = np.clip(starting_point[0] + random.randint(-offset * 5, offset * 5), 0, xsize)
+                        p1_y = np.clip(starting_point[1] + random.randint(-offset * 1, offset * 1), 0, ysize)
+                        p2_x = np.clip(ending_point[0] + random.randint(-offset * 5, offset * 5), 0, xsize)
+                        p2_y = np.clip(ending_point[1] + random.randint(-offset * 1, offset * 1), 0, ysize)
+                        p1 = (p1_x, p1_y)
+                        p2 = (p2_x, p2_y)
+                        lines_coordinates.append(np.array([p1, p2]))
+                        p1_x = np.clip(ending_point[0] + random.randint(-offset * 5, offset * 5), 0, xsize)
+                        p1_y = np.clip(starting_point[1] + random.randint(-offset * 1, offset * 1), 0, ysize)
+                        p2_x = np.clip(starting_point[0] + random.randint(-offset * 5, offset * 5), 0, xsize)
+                        p2_y = np.clip(ending_point[1] + random.randint(-offset * 1, offset * 1), 0, ysize)
+                        p1 = (p1_x, p1_y)
+                        p2 = (p2_x, p2_y)
+                        lines_coordinates.append(np.array([p1, p2]))
+                    else:
+                        points_list = self.distribute_line(
+                            starting_point,
+                            ending_point,
+                            offset,
+                        ).astype("int")
+                        lines_coordinates.append(points_list)
+
+        return lines_coordinates
+
+    def draw_precomputed(self, image, lines_coordinates):
+        """Draw annotations on image using coordinates pre-computed by precompute_lines.
+
+        Uses self._precomputed_markup_color and self._precomputed_markup_type so that
+        color and type are consistent with the detection step.
+
+        ink_min_brightness=0 disables the brightness floor that was washing out dark
+        ink colours (e.g. dark blue pen) to near-white in the original __call__.
+
+        Returns image unchanged when lines_coordinates is empty.
+        """
+        if not lines_coordinates:
+            return image
+
+        has_alpha = 0
+        if len(image.shape) < 3:
+            markup_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        elif image.shape[2] == 4:
+            has_alpha = 1
+            markup_image = image[:, :, :3].copy()
+            image_alpha = image[:, :, 3]
+        else:
+            markup_image = image.copy()
+
+        if self.markup_ink == "random":
+            markup_ink = random.choice(["pencil", "pen", "marker", "highlighter"])
+        else:
+            markup_ink = self.markup_ink
+
+        markup_color = getattr(self, "_precomputed_markup_color", self.markup_color)
+        markup_type = getattr(self, "_precomputed_markup_type", self.markup_type)
+
+        if markup_type == "highlight":
+            markup_thickness_range = (self.markup_thickness_range[0] + 5, self.markup_thickness_range[1] + 5)
+        else:
+            markup_thickness_range = self.markup_thickness_range
+
+        from augraphy.utilities.inkgenerator import InkGenerator
+        ink_generator = InkGenerator(
+            ink_type=markup_ink,
+            ink_draw_method="lines",
+            ink_draw_iterations=(1, 1),
+            ink_location="random",
+            ink_background=markup_image,
+            ink_background_size=None,
+            ink_background_color=None,
+            ink_color=markup_color,
+            ink_min_brightness=0,  # disabled: was brightening dark ink (e.g. blue) to near-white
+            ink_min_brightness_value_range=(150, 200),
+            ink_draw_size_range=None,
+            ink_thickness_range=markup_thickness_range,
+            ink_brightness_change=[0],
+            ink_skeletonize=0,
+            ink_skeletonize_iterations_range=(1, 1),
+            ink_text=None,
+            ink_text_font=None,
+            ink_text_rotate_range=None,
+            ink_lines_coordinates=lines_coordinates,
+            ink_lines_stroke_count_range=(1, 1),
+        )
+        markup_image = ink_generator.generate_ink()
+
+        if has_alpha:
+            markup_image = np.dstack((markup_image, image_alpha))
+
+        return markup_image
+
 
 # ── Phase builders ────────────────────────────────────────────────────────────
 
@@ -421,13 +651,18 @@ def _build_per_image_pipeline(args, ink_phase, base_paper_phase, post_phase):
     )
 
 
-def _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=None):
+def _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=None, precomputed_markup=None):
     """Apply per-image profile-sampled augmentations (post-pipeline).
 
     SubtleNoise: adds small uniform channel offsets, safe post-pipeline.
     Faxify: samples one of three discrete modes (mono-only, halftone-only, both).
     ColorPaper is handled separately via _build_per_image_pipeline (paper phase).
     When all profile_sampling flags are disabled this is a no-op.
+
+    precomputed_markup: optional (markup_obj, lines_coordinates) tuple produced by
+    augment_pdf before the pipeline runs. When supplied, draw_precomputed is called
+    with the pre-detected coordinates from the original clean image, bypassing
+    in-place contour detection on the (potentially degraded) augmented image.
     """
     result = img
 
@@ -436,10 +671,15 @@ def _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=None):
     # never assign None back to result.
 
     # Order: markup → subtle_noise → faxify
-    # Markup detects text contours on the cleanest possible image.
+    # Markup draws on the cleanest image available before noise/binarization.
     # SubtleNoise adds paper-level grain to the annotated document.
     # Faxify binarizes/halftones last so it does not destroy annotation colors before they are drawn.
-    if args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
+    if precomputed_markup is not None:
+        # Primary path: coordinates were detected on the original clean image in augment_pdf.
+        _markup_obj, _lines_coords = precomputed_markup
+        result = _markup_obj.draw_precomputed(result, _lines_coords)
+    elif args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
+        # Fallback: augment_pdf did not supply precomputed_markup (e.g. called standalone).
         if np.random.random() < args.annotations_p:
             weights = np.array(args.annotations_markup_type_weights, dtype=float)
             markup_type = _MARKUP_TYPES[np.random.choice(len(weights), p=weights / weights.sum())]
@@ -806,6 +1046,46 @@ def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, args, num_augmentati
             if _faxify_mutex_active:
                 faxify_pre_rolled = np.random.random() < args.faxify_p
 
+            # Pre-compute markup line detection on the original clean image.
+            # Detection runs here (before any augmentation) so that ink bleed, scanner noise,
+            # stains, and lines-degradation do not pollute the contour-finding step.
+            # The resulting (markup_obj, lines_coordinates) tuple is passed to
+            # _apply_page_sampled_augmentations, which draws the strokes on the augmented image.
+            precomputed_markup = None
+            if args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
+                if np.random.random() < args.annotations_p:
+                    _weights = np.array(args.annotations_markup_type_weights, dtype=float)
+                    _markup_type = _MARKUP_TYPES[np.random.choice(len(_weights), p=_weights / _weights.sum())]
+                    _markup_ink = _resolve_markup_ink(args)
+                    _color_args = {
+                        "pencil":      args.annotations_markup_pencil_colors,
+                        "pen":         args.annotations_markup_pen_colors,
+                        "marker":      args.annotations_markup_marker_colors,
+                        "highlighter": args.annotations_markup_highlighter_colors,
+                    }[_markup_ink]
+                    _thickness_range = {
+                        "pencil":      args.annotations_markup_pencil_thickness_range,
+                        "pen":         args.annotations_markup_pen_thickness_range,
+                        "marker":      args.annotations_markup_marker_thickness_range,
+                        "highlighter": args.annotations_markup_highlighter_thickness_range,
+                    }[_markup_ink]
+                    _swm = args.annotations_markup_single_word_mode
+                    _markup_obj = RealisticMarkup(
+                        num_lines_range=tuple(args.annotations_markup_num_lines_range),
+                        markup_length_range=tuple(args.annotations_markup_length_range),
+                        markup_thickness_range=tuple(_thickness_range),
+                        markup_type=_markup_type,
+                        markup_ink=_markup_ink,
+                        markup_color=_resolve_markup_color(_color_args),
+                        large_word_mode={-1: "random", 0: False, 1: True}[args.annotations_markup_large_word_mode],
+                        single_word_mode=(bool(np.random.randint(2)) if _swm == -1 else bool(_swm)),
+                        repetitions=np.random.randint(args.annotations_markup_repetitions[0], args.annotations_markup_repetitions[1] + 1),
+                        control_points_range=tuple(args.annotations_markup_control_points_range),
+                        line_offset=args.annotations_markup_line_offset,
+                        p=1.0,
+                    )
+                    precomputed_markup = (_markup_obj, _markup_obj.precompute_lines(img))
+
             if _use_dynamic_pipeline:
                 active_paper = _base_paper_phase_no_mutex if faxify_pre_rolled else _base_paper_phase
                 active_post = _post_phase_no_mutex if faxify_pre_rolled else _post_phase
@@ -813,7 +1093,7 @@ def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, args, num_augmentati
             else:
                 aug_pipeline = pipeline
             augmented = aug_pipeline(img)
-            augmented = _apply_page_sampled_augmentations(augmented, args, faxify_pre_rolled=faxify_pre_rolled)
+            augmented = _apply_page_sampled_augmentations(augmented, args, faxify_pre_rolled=faxify_pre_rolled, precomputed_markup=precomputed_markup)
             out_path = out_subdir / f"page_{page_idx:03d}_aug_{aug_idx:03d}.png"
             cv2.imwrite(str(out_path), augmented)
             saved += 1
