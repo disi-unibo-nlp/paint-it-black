@@ -77,6 +77,7 @@ def base_args(**overrides):
         geometric_p=0.0,
         lighting_gradient_p=0.0,
         shadow_cast_p=0.0,
+        shadow_cast_color=[0, 0, 0],
         exposure_p=0.0,
         jpeg_p=0.0,
         folding_p=0.0,

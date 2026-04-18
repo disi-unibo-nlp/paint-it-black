@@ -13,6 +13,14 @@ dpi: 300
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 stains_p: 1.0
+stains_profile_sampling: 1
+stains_num_profiles: 4
+stains_profile_weights: [0.3, 0.3, 0.2, 0.2]
+stains_profile_types: [fine_stains, rough_stains, severe_stains, light_stains]
+stains_profile_blend_methods: [darken, multiply, darken, normal]
+stains_profile_blend_alphas: [0.2, 0.5, 0.3, 0.3]
+
+# ── static fallback (stains_profile_sampling: 0 only) ─────────────────────────
 stains_type: fine_stains
 stains_blend_method: darken
 stains_blend_alpha: 0.2

@@ -910,7 +910,7 @@ def _build_post_phase(args) -> list:
             shadow_vertices_range=tuple(args.shadow_cast_vertices_range),
             shadow_width_range=tuple(args.shadow_cast_width_range),
             shadow_height_range=tuple(args.shadow_cast_height_range),
-            shadow_color=(0, 0, 0),
+            shadow_color=tuple(args.shadow_cast_color) if args.shadow_cast_color != "random" else "random",
             shadow_opacity_range=tuple(args.shadow_cast_opacity_range),
             shadow_iterations_range=tuple(args.shadow_cast_iterations_range),
             shadow_blur_kernel_range=tuple(args.shadow_cast_blur_kernel_range),
@@ -1284,6 +1284,8 @@ def main():
     parser.add_argument("--shadow_cast_opacity_range", type=float, nargs=2, default=[0.2, 0.5])
     parser.add_argument("--shadow_cast_iterations_range", type=int, nargs=2, default=[1, 2])
     parser.add_argument("--shadow_cast_blur_kernel_range", type=int, nargs=2, default=[101, 301])
+    parser.add_argument("--shadow_cast_color", nargs="+", default=[0, 0, 0],
+                        help="BGR color of the shadow, or 'random'. E.g. [0,0,0] for black, [30,30,50] for dark brownish.")
 
     # exposure (OneOf: brightness / gamma)
     parser.add_argument("--exposure_p", type=float, default=0.5)

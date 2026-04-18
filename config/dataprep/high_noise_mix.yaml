@@ -78,7 +78,7 @@ annotations_markup_single_word_mode: 0
 annotations_markup_repetitions: [1, 1]
 annotations_markup_ink_weights: [0.0, 0.7, 0.0, 0.3] # pencil, pen, marker, highlighter
 annotations_markup_type_weights: [0.0, 0.0, 0.0, 1.0]
-annotations_markup_num_lines_range: [15, 40]
+annotations_markup_num_lines_range: [35, 60]
 annotations_markup_length_range: [1.0, 1.0]
 annotations_markup_pen_thickness_range: [1, 1]
 annotations_markup_pen_colors: [0, 0, 0, 0, 0, 64] # black, blue
@@ -133,20 +133,23 @@ scanner_noise_dirty_screen_std_range: [1, 4]
 scanner_noise_dirty_screen_value_range: [130, 240]
 
 # ── shadow cast ─────────────────────────────────────────────────────────────────
-shadow_cast_p: 0.4
+shadow_cast_p: 0.5
 shadow_cast_side: random
-shadow_cast_vertices_range: [2, 12]
-shadow_cast_width_range: [0.05, 0.90]
-shadow_cast_height_range: [0.05, 0.70]
+shadow_cast_vertices_range: [2, 8]
+shadow_cast_width_range: [0.05, 0.80]
+shadow_cast_height_range: [0.1, 0.50]
 shadow_cast_opacity_range: [0.05, 0.60]
-shadow_cast_iterations_range: [1, 3]
+shadow_cast_iterations_range: [1, 2]
 shadow_cast_blur_kernel_range: [51, 401]
 
 # ── stains ─────────────────────────────────────────────────────────────────
-stains_p: 0.4
-stains_type: fine_stains
-stains_blend_method: darken
-stains_blend_alpha: 0.1
+stains_p: 1.0
+stains_profile_sampling: 1
+stains_num_profiles: 2
+stains_profile_weights: [0.4, 0.6]
+stains_profile_types: [fine_stains, light_stains]
+stains_profile_blend_methods: [normal, darken]
+stains_profile_blend_alphas: [0.2, 1.0]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 bleed_through_p: 0.0
