@@ -1,0 +1,46 @@
+# high_noise: color_paper
+# Page-level sampling across three paper profiles: near-white, cream, aged yellow.
+# Each augmented image is assigned one profile for the whole page, creating realistic
+# variety in paper colour across the dataset — not just pixel-level speckle.
+#
+# OpenCV HSV note: H is 0-180 (half the 360° circle), S and V are 0-255.
+# Warm paper hues: orange≈15, yellow≈30. Do NOT exceed H=35 or you enter green territory.
+# Saturation must be ≥40 to be clearly visible on white paper (V=255).
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise/color_paper
+
+run_name: color_paper_light
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/high_noise
+num_augmentations: 1
+dpi: 300
+
+# ── showcased ─────────────────────────────────────────────────────────────────
+color_paper_p: 1.0
+color_paper_page_sampling: 1
+color_paper_num_profiles: 3
+color_paper_profile_weights: [1.0]
+color_paper_profile_hue_ranges: [15, 20]
+color_paper_profile_saturation_ranges: [25, 40]
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+ink_bleed_p: 0.0
+bleed_through_p: 0.0
+low_ink_p: 0.0
+ink_mottling_p: 0.0
+lines_degradation_p: 0.0
+texture_p: 0.0
+stains_p: 0.0
+watermark_p: 0.0
+scanner_noise_p: 0.0
+geometric_p: 0.0
+lighting_gradient_p: 0.0
+shadow_cast_p: 0.0
+exposure_p: 0.0
+subtle_noise_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0
+annotations_p: 0.0
+faxify_p: 0.0

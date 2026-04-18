@@ -1,0 +1,162 @@
+# high_noise_mix
+# All augmentations from config/dataprep/high_noise/ combined.
+# All used augmentation probabilities are set to 1.0 — tune them below.
+# Earlier configs (continuous degradations) appear first; rarer/high-impact ones at the end.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise_mix
+
+run_name: high_noise_mix
+log_level: INFO
+seed: 42
+input_dir: ./data/example_input
+output_dir: ./output/
+num_augmentations: 10
+dpi: 300
+
+# ── color paper ─────────────────────────────────────────────────────────────────
+color_paper_p: 1.0
+color_paper_page_sampling: 1
+color_paper_num_profiles: 3
+color_paper_profile_weights: [0.2, 0.4, 0.4]
+color_paper_profile_hue_ranges: [15, 20, 15, 25, 15, 25]
+color_paper_profile_saturation_ranges: [25, 40, 35, 60, 40, 80]
+
+# ── ink bleed ─────────────────────────────────────────────────────────────────
+ink_bleed_p: 1.0
+ink_bleed_intensity_range: [0.65, 0.90]
+ink_bleed_kernel_size: [3, 8]
+ink_bleed_severity: [0.40, 0.70]
+
+# ── ink mottling ─────────────────────────────────────────────────────────────────
+ink_mottling_p: 0.5
+ink_mottling_alpha_range: [0.28, 0.50]
+ink_mottling_noise_scale_range: [2, 8]
+ink_mottling_gaussian_kernel_range: [5, 21]
+
+# ── lighting gradient ─────────────────────────────────────────────────────────────────
+lighting_gradient_p: 1.0
+lighting_gradient_max_brightness: 255
+lighting_gradient_min_brightness: 50
+lighting_gradient_mode: gaussian    # gaussian | linear
+lighting_gradient_transparency: 0.90  # fixes random.uniform(0.5,0.85) default which causes extreme dimming
+
+# ── low ink ─────────────────────────────────────────────────────────────────
+low_ink_p: 1.0
+low_ink_random_lines: 1
+low_ink_random_lines_count_range: [3, 8]
+low_ink_random_lines_consistent: 0
+low_ink_random_lines_noise_prob: 0.5
+low_ink_periodic_lines: 1
+low_ink_periodic_lines_count_range: [3, 6]
+low_ink_periodic_lines_period_range: [3, 8]
+low_ink_periodic_lines_consistent: 0
+low_ink_periodic_lines_noise_prob: 0.5
+
+# ── lines degradation ─────────────────────────────────────────────────────────────────
+lines_degradation_p: 1.0
+lines_degradation_gradient_range: [32, 255]
+lines_degradation_gradient_direction: [0, 2]
+lines_degradation_split_probability: [0.2, 0.6]
+lines_degradation_replacement_value: [250, 255]
+lines_degradation_replacement_probability: [0.4, 0.5]
+lines_degradation_min_length: [30, 40]
+lines_degradation_long_to_short_ratio: [5, 7]
+lines_degradation_replacement_thickness: [1, 3]
+
+# ── subtle noise ─────────────────────────────────────────────────────────────────
+subtle_noise_p: 1.0
+subtle_noise_page_sampling: 1
+subtle_noise_num_profiles: 2
+subtle_noise_profile_weights: [0.50, 0.50]
+subtle_noise_profile_ranges:  [18, 30]
+
+# ── annotations ─────────────────────────────────────────────────────────────────
+annotations_p: 0.5
+annotations_markup: 1
+annotations_markup_sampling: 1
+annotations_markup_large_word_mode: 1
+annotations_markup_single_word_mode: 0
+annotations_markup_repetitions: [1, 1]
+annotations_markup_ink_weights: [0.0, 0.7, 0.0, 0.3] # pencil, pen, marker, highlighter
+annotations_markup_type_weights: [0.0, 0.0, 0.0, 1.0]
+annotations_markup_num_lines_range: [35, 60]
+annotations_markup_length_range: [1.0, 1.0]
+annotations_markup_pen_thickness_range: [1, 1]
+annotations_markup_pen_colors: [0, 0, 0, 0, 0, 64] # black, blue
+annotations_markup_marker_thickness_range: [1, 1]
+annotations_markup_marker_colors: [0, 0, 0]
+annotations_markup_highlighter_thickness_range: [1, 1]
+annotations_markup_highlighter_colors: [255, 255, 0, 0, 255, 255, 255, 0, 255, 255, 192, 203] # yellow, blue, purple, pink
+annotations_markup_control_points_range: [2, 4] # control points per stroke; fewer = straighter
+annotations_markup_line_offset: 4               # y-jitter per point in pixels
+annotations_scribbles: 0
+
+# ── faxify ─────────────────────────────────────────────────────────────────
+faxify_p: 0.5
+faxify_profile_sampling: 1
+faxify_profile_weights: [0.4, 0.4, 0.2] # mono-only, halftone-only, both
+faxify_scale_range: [0.5, 1.5]
+faxify_monochrome_methods: [threshold_li, threshold_mean, threshold_otsu, threshold_sauvola]  # threshold_triangle excluded
+faxify_half_kernel_size: [1, 1]
+faxify_angle: [0, 360]
+faxify_sigma: [1.0, 3.0]
+
+# ── scanner noise ─────────────────────────────────────────────────────────────────
+scanner_noise_p: 0.0
+scanner_noise_bad_photo_copy: 1
+scanner_noise_bad_photo_copy_noise_type: -1
+scanner_noise_bad_photo_copy_noise_side: random
+scanner_noise_bad_photo_copy_noise_iter: [1, 3]
+scanner_noise_bad_photo_copy_noise_size: [1, 1]
+scanner_noise_bad_photo_copy_noise_value: [10, 60]
+scanner_noise_bad_photo_copy_sparsity: [0.4, 0.7]
+scanner_noise_bad_photo_copy_concentration: [0.1, 0.3]
+scanner_noise_bad_photo_copy_blur_noise: -1
+scanner_noise_bad_photo_copy_wave_pattern: -1
+scanner_noise_bad_photo_copy_edge_effect: -1
+
+scanner_noise_dirty_rollers: 0
+scanner_noise_dirty_rollers_line_width: [2, 12]
+scanner_noise_dirty_rollers_scanline_type: 0
+
+scanner_noise_dirty_drum: 0
+scanner_noise_dirty_drum_line_width: [1, 3]
+scanner_noise_dirty_drum_line_concentration: 0.12
+scanner_noise_dirty_drum_direction: -1
+scanner_noise_dirty_drum_noise_intensity: 0.5
+scanner_noise_dirty_drum_noise_value: [0, 40]
+scanner_noise_dirty_drum_ksize: [3, 3]
+
+scanner_noise_dirty_screen: 0
+scanner_noise_dirty_screen_n_clusters: [15, 40]
+scanner_noise_dirty_screen_n_samples: [2, 10]
+scanner_noise_dirty_screen_std_range: [1, 4]
+scanner_noise_dirty_screen_value_range: [130, 240]
+
+# ── shadow cast ─────────────────────────────────────────────────────────────────
+shadow_cast_p: 0.5
+shadow_cast_side: random
+shadow_cast_vertices_range: [2, 8]
+shadow_cast_width_range: [0.05, 0.80]
+shadow_cast_height_range: [0.1, 0.50]
+shadow_cast_opacity_range: [0.05, 0.60]
+shadow_cast_iterations_range: [1, 2]
+shadow_cast_blur_kernel_range: [51, 401]
+
+# ── stains ─────────────────────────────────────────────────────────────────
+stains_p: 1.0
+stains_profile_sampling: 1
+stains_num_profiles: 2
+stains_profile_weights: [0.4, 0.6]
+stains_profile_types: [fine_stains, light_stains]
+stains_profile_blend_methods: [normal, darken]
+stains_profile_blend_alphas: [0.2, 1.0]
+
+# ── disabled ──────────────────────────────────────────────────────────────────
+bleed_through_p: 0.0
+texture_p: 0.0
+watermark_p: 0.0
+geometric_p: 0.0
+exposure_p: 0.0
+jpeg_p: 0.0
+folding_p: 0.0
+page_border_p: 0.0

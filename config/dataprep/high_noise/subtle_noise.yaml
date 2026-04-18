@@ -1,23 +1,23 @@
-# Example: annotations
-# OneOf: Markup (underlines, highlights, strikethroughs) / Scribbles — handwritten clinician notes.
-# All other augmentations are disabled so the effect is isolated.
-# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/annotations
+# high_noise_mix: subtle_noise
+# Page-level sampling across three scanner noise profiles: light, medium, heavy.
+# Each augmented image draws one profile, so the dataset covers a wide noise range
+# rather than fixing every copy to the same noise level.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise_mix/subtle_noise
 
-run_name: annotations
+run_name: subtle_noise
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
-output_dir: ./output/augmentation_elements
-num_augmentations: 1
-dpi: 200
+output_dir: ./output/high_noise
+num_augmentations: 4
+dpi: 300
 
 # ── showcased ─────────────────────────────────────────────────────────────────
-annotations_p: 1.0
-annotations_markup: 1
-annotations_markup_num_lines_range: [2, 6]
-annotations_scribbles: 1
-annotations_scribbles_count_range: [2, 6]
-annotations_scribbles_thickness_range: [1, 6]
+subtle_noise_p: 1.0
+subtle_noise_page_sampling: 1
+subtle_noise_num_profiles: 2
+subtle_noise_profile_weights: [0.50, 0.50]
+subtle_noise_profile_ranges:  [18, 30]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0
@@ -34,8 +34,8 @@ geometric_p: 0.0
 lighting_gradient_p: 0.0
 shadow_cast_p: 0.0
 exposure_p: 0.0
-subtle_noise_p: 0.0
 jpeg_p: 0.0
 folding_p: 0.0
 page_border_p: 0.0
+annotations_p: 0.0
 faxify_p: 0.0

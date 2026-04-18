@@ -9,7 +9,7 @@ log_level: INFO
 seed: 42
 input_dir: ./data/example_input
 output_dir: ./output/augmentation_elements
-num_augmentations: 6
+num_augmentations: 1
 dpi: 200
 
 # ── showcased ─────────────────────────────────────────────────────────────────

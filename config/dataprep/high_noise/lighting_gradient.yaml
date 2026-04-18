@@ -1,23 +1,22 @@
-# Example: annotations
-# OneOf: Markup (underlines, highlights, strikethroughs) / Scribbles — handwritten clinician notes.
-# All other augmentations are disabled so the effect is isolated.
-# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/examples/annotations
+# high_noise_mix: lighting_gradient
+# Stronger uneven scanner lamp illumination — pronounced shadow across the page.
+# Lower transparency and min_brightness push the effect further than low_noise.
+# Run: ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config dataprep/high_noise_mix/lighting_gradient
 
-run_name: annotations
+run_name: lighting_gradient
 log_level: INFO
 seed: 42
 input_dir: ./data/example_input
-output_dir: ./output/augmentation_elements
-num_augmentations: 1
-dpi: 200
+output_dir: ./output/high_noise
+num_augmentations: 4
+dpi: 300
 
 # ── showcased ─────────────────────────────────────────────────────────────────
-annotations_p: 1.0
-annotations_markup: 1
-annotations_markup_num_lines_range: [2, 6]
-annotations_scribbles: 1
-annotations_scribbles_count_range: [2, 6]
-annotations_scribbles_thickness_range: [1, 6]
+lighting_gradient_p: 1.0
+lighting_gradient_max_brightness: 255
+lighting_gradient_min_brightness: 20
+lighting_gradient_mode: gaussian
+lighting_gradient_transparency: 0.78
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0
@@ -31,11 +30,11 @@ stains_p: 0.0
 watermark_p: 0.0
 scanner_noise_p: 0.0
 geometric_p: 0.0
-lighting_gradient_p: 0.0
 shadow_cast_p: 0.0
 exposure_p: 0.0
 subtle_noise_p: 0.0
 jpeg_p: 0.0
 folding_p: 0.0
 page_border_p: 0.0
+annotations_p: 0.0
 faxify_p: 0.0
