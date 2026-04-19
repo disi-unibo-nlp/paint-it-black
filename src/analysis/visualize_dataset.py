@@ -34,10 +34,9 @@ def build_fo_dataset(hf_dataset: Dataset, name: str, img_dir: Path, logger) -> f
     fo_dataset = fo.Dataset(name, persistent=True)
     samples = []
 
-    for row in hf_dataset:
-        pdf_stem = Path(row["pdf_path"]).stem
+    for i, row in enumerate(hf_dataset):
         page = row["page"]
-        img_path = img_dir / f"{pdf_stem}_page{page:03d}.png"
+        img_path = img_dir / f"{i:05d}_page{page:03d}.png"
 
         if not img_path.exists():
             row["image"].save(str(img_path))
@@ -58,8 +57,7 @@ def build_fo_dataset(hf_dataset: Dataset, name: str, img_dir: Path, logger) -> f
 
         samples.append(fo.Sample(
             filepath=str(img_path),
-            page=row["page"],
-            pdf_path=row["pdf_path"],
+            page=page,
             ground_truth=fo.Detections(detections=detections),
         ))
 
