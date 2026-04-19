@@ -1,16 +1,28 @@
 """
-augment_pdfs.py — Apply document augmentations to a folder of PDFs using augraphy.
+augment_dataset.py — Apply document augmentations to a folder of PDFs or an HF Dataset split.
 
-For each PDF in input_dir, each page is converted to an image and augmented
-num_augmentations times. Results are saved as PNGs under output_dir.
+Dir mode (original):
+    For each PDF in input_dir, each page is converted to an image and augmented
+    num_augmentations times. Results are saved as PNGs under output_dir.
 
-Output structure:
-    output_dir/<pdf_stem>/page_<N>_aug_<M>.png
+    Output structure:
+        output_dir/<run_name>/<pdf_stem>/page_<N>_aug_<M>.png
 
-Usage:
-    python3 src/dataprep/augment_pdfs.py --config dataprep/augment_config
-    python3 src/dataprep/augment_pdfs.py --config dataprep/augment_config --geometric_p 0.0
-    python3 src/dataprep/augment_pdfs.py --config dataprep/augment_config --faxify_p 0.2
+    Usage:
+        python3 src/dataprep/augment_dataset.py --config dataprep/augment_config
+        python3 src/dataprep/augment_dataset.py --config dataprep/augment_config --geometric_p 0.0
+
+Dataset mode (HF Dataset):
+    Reads images from an HF Dataset split (local or Hub), augments each row once
+    (num_augmentations is forced to 1), and writes the result as a new split.
+
+    Usage:
+        python3 src/dataprep/augment_dataset.py --config dataprep/low_noise_mix \\
+            --input_dataset data/my_ds --input_split base --output_split augmented
+        # Re-sample specific rows (e.g. after inspecting bad results):
+        python3 src/dataprep/augment_dataset.py --config dataprep/low_noise_mix --seed 99 \\
+            --input_dataset data/my_ds --input_split base \\
+            --output_dataset data/my_ds --output_split augmented --resample_ids 5 12 47
 
 Every augmentation parameter is individually settable from the config file or CLI.
 Set any <aug>_p to 0.0 to disable that augmentation entirely.
@@ -25,6 +37,10 @@ import cv2
 import numpy as np
 from pathlib import Path
 from pdf2image import convert_from_path
+from PIL import Image
+from datasets import Dataset, DatasetDict, load_from_disk
+from datasets import Image as HFImage
+from huggingface_hub import login
 from augraphy.augmentations.lib import smooth
 from augraphy import (
     AugraphyPipeline,
@@ -761,6 +777,85 @@ def _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=None, precomp
     return result
 
 
+def _augment_single_image(
+    img_bgr,
+    args,
+    pipeline,
+    use_dynamic_pipeline,
+    faxify_mutex_active,
+    ink_phase=None,
+    base_paper_phase=None,
+    post_phase=None,
+    base_paper_phase_no_mutex=None,
+    post_phase_no_mutex=None,
+):
+    """Augment a single BGR image. Returns an augmented BGR numpy array.
+
+    Shared by augment_pdf (dir mode) and augment_dataset_split (HF dataset mode)
+    so the two entry points cannot diverge silently.
+    """
+    faxify_pre_rolled = None
+    if faxify_mutex_active:
+        faxify_pre_rolled = np.random.random() < args.faxify_p
+
+    precomputed_markup = None
+    if args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
+        if np.random.random() < args.annotations_p:
+            _weights = np.array(args.annotations_markup_type_weights, dtype=float)
+            _markup_type = _MARKUP_TYPES[np.random.choice(len(_weights), p=_weights / _weights.sum())]
+            _markup_ink = _resolve_markup_ink(args)
+            _color_args = {
+                "pencil":      args.annotations_markup_pencil_colors,
+                "pen":         args.annotations_markup_pen_colors,
+                "marker":      args.annotations_markup_marker_colors,
+                "highlighter": args.annotations_markup_highlighter_colors,
+            }[_markup_ink]
+            _thickness_range = {
+                "pencil":      args.annotations_markup_pencil_thickness_range,
+                "pen":         args.annotations_markup_pen_thickness_range,
+                "marker":      args.annotations_markup_marker_thickness_range,
+                "highlighter": args.annotations_markup_highlighter_thickness_range,
+            }[_markup_ink]
+            _swm = args.annotations_markup_single_word_mode
+            _markup_obj = RealisticMarkup(
+                num_lines_range=tuple(args.annotations_markup_num_lines_range),
+                markup_length_range=tuple(args.annotations_markup_length_range),
+                markup_thickness_range=tuple(_thickness_range),
+                markup_type=_markup_type,
+                markup_ink=_markup_ink,
+                markup_color=_resolve_markup_color(_color_args),
+                large_word_mode={-1: "random", 0: False, 1: True}[args.annotations_markup_large_word_mode],
+                single_word_mode=(bool(np.random.randint(2)) if _swm == -1 else bool(_swm)),
+                repetitions=np.random.randint(
+                    args.annotations_markup_repetitions[0],
+                    args.annotations_markup_repetitions[1] + 1,
+                ),
+                control_points_range=tuple(args.annotations_markup_control_points_range),
+                line_offset=args.annotations_markup_line_offset,
+                p=1.0,
+            )
+            precomputed_markup = (_markup_obj, _markup_obj.precompute_lines(img_bgr))
+        else:
+            # Probability failed: use empty tuple sentinel so the fallback detection
+            # path in _apply_page_sampled_augmentations is not triggered.
+            precomputed_markup = ()
+
+    if use_dynamic_pipeline:
+        active_paper = base_paper_phase_no_mutex if faxify_pre_rolled else base_paper_phase
+        active_post  = post_phase_no_mutex       if faxify_pre_rolled else post_phase
+        aug_pipeline = _build_per_image_pipeline(args, ink_phase, active_paper, active_post)
+    else:
+        aug_pipeline = pipeline
+
+    augmented = aug_pipeline(img_bgr)
+    augmented = _apply_page_sampled_augmentations(
+        augmented, args,
+        faxify_pre_rolled=faxify_pre_rolled,
+        precomputed_markup=precomputed_markup,
+    )
+    return augmented
+
+
 def _build_paper_phase(args) -> list:
     phase = []
 
@@ -1043,6 +1138,9 @@ def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, args, num_augmentati
     _faxify_mutex_active = bool(getattr(args, "faxify_profile_sampling", 0)) and args.faxify_p > 0
     _use_dynamic_pipeline = _use_per_image_pipeline or _faxify_mutex_active
 
+    _ink_phase = _base_paper_phase = _post_phase = None
+    _base_paper_phase_no_mutex = _post_phase_no_mutex = None
+
     if _use_dynamic_pipeline:
         _ink_phase = _build_ink_phase(args)
         _base_paper_phase = _build_paper_phase(args)  # ColorPaper already excluded
@@ -1059,72 +1157,94 @@ def augment_pdf(pdf_path: Path, output_dir: Path, pipeline, args, num_augmentati
     for page_idx, pil_page in enumerate(pages):
         img = cv2.cvtColor(np.array(pil_page), cv2.COLOR_RGB2BGR)
         for aug_idx in range(num_augmentations):
-            # Pre-roll faxify for mutex: decides the pipeline post_phase before augraphy runs
-            faxify_pre_rolled = None
-            if _faxify_mutex_active:
-                faxify_pre_rolled = np.random.random() < args.faxify_p
-
-            # Pre-compute markup line detection on the original clean image.
-            # Detection runs here (before any augmentation) so that ink bleed, scanner noise,
-            # stains, and lines-degradation do not pollute the contour-finding step.
-            # The resulting (markup_obj, lines_coordinates) tuple is passed to
-            # _apply_page_sampled_augmentations, which draws the strokes on the augmented image.
-            precomputed_markup = None
-            if args.annotations_markup and args.annotations_markup_sampling and args.annotations_p > 0:
-                if np.random.random() < args.annotations_p:
-                    _weights = np.array(args.annotations_markup_type_weights, dtype=float)
-
-                    _markup_type = _MARKUP_TYPES[np.random.choice(len(_weights), p=_weights / _weights.sum())]
-                    _markup_ink = _resolve_markup_ink(args)
-                    _color_args = {
-                        "pencil":      args.annotations_markup_pencil_colors,
-                        "pen":         args.annotations_markup_pen_colors,
-                        "marker":      args.annotations_markup_marker_colors,
-                        "highlighter": args.annotations_markup_highlighter_colors,
-                    }[_markup_ink]
-                    _thickness_range = {
-                        "pencil":      args.annotations_markup_pencil_thickness_range,
-                        "pen":         args.annotations_markup_pen_thickness_range,
-                        "marker":      args.annotations_markup_marker_thickness_range,
-                        "highlighter": args.annotations_markup_highlighter_thickness_range,
-                    }[_markup_ink]
-                    _swm = args.annotations_markup_single_word_mode
-                    _markup_obj = RealisticMarkup(
-                        num_lines_range=tuple(args.annotations_markup_num_lines_range),
-                        markup_length_range=tuple(args.annotations_markup_length_range),
-                        markup_thickness_range=tuple(_thickness_range),
-                        markup_type=_markup_type,
-                        markup_ink=_markup_ink,
-                        markup_color=_resolve_markup_color(_color_args),
-                        large_word_mode={-1: "random", 0: False, 1: True}[args.annotations_markup_large_word_mode],
-                        single_word_mode=(bool(np.random.randint(2)) if _swm == -1 else bool(_swm)),
-                        repetitions=np.random.randint(args.annotations_markup_repetitions[0], args.annotations_markup_repetitions[1] + 1),
-                        control_points_range=tuple(args.annotations_markup_control_points_range),
-                        line_offset=args.annotations_markup_line_offset,
-                        p=1.0,
-                    )
-                    precomputed_markup = (_markup_obj, _markup_obj.precompute_lines(img))
-                else:
-                    # Probability failed: use empty tuple as sentinel so that the fallback
-                    # detection path in _apply_page_sampled_augmentations is not triggered.
-                    # Without this, the fallback re-rolls the probability and, when it passes,
-                    # runs detection on the already-degraded augmented image.
-                    precomputed_markup = ()
-
-            if _use_dynamic_pipeline:
-                active_paper = _base_paper_phase_no_mutex if faxify_pre_rolled else _base_paper_phase
-                active_post = _post_phase_no_mutex if faxify_pre_rolled else _post_phase
-                aug_pipeline = _build_per_image_pipeline(args, _ink_phase, active_paper, active_post)
-            else:
-                aug_pipeline = pipeline
-            augmented = aug_pipeline(img)
-            augmented = _apply_page_sampled_augmentations(augmented, args, faxify_pre_rolled=faxify_pre_rolled, precomputed_markup=precomputed_markup)
+            augmented = _augment_single_image(
+                img, args, pipeline,
+                _use_dynamic_pipeline, _faxify_mutex_active,
+                _ink_phase, _base_paper_phase, _post_phase,
+                _base_paper_phase_no_mutex if _faxify_mutex_active else None,
+                _post_phase_no_mutex if _faxify_mutex_active else None,
+            )
             out_path = out_subdir / f"page_{page_idx:03d}_aug_{aug_idx:03d}.png"
             cv2.imwrite(str(out_path), augmented)
             saved += 1
             logger.debug(f"  Saved {out_path.name}")
 
     return saved
+
+
+# ── HF Dataset mode ──────────────────────────────────────────────────────────
+
+def augment_dataset_split(
+    source_dataset,
+    args,
+    pipeline,
+    logger,
+    resample_indices=None,
+    existing_dataset=None,
+):
+    """Augment an HF Dataset split, producing exactly one augmented row per source row.
+
+    source_dataset:   the clean base Dataset to read images from.
+    resample_indices: if given (list/set of int row indices), only those rows are
+                      re-augmented from source_dataset and merged into existing_dataset.
+                      All other rows are taken unchanged from existing_dataset.
+    existing_dataset: required when resample_indices is not None.
+    """
+    _use_per_image_pipeline = args.color_paper_page_sampling and args.color_paper_p > 0
+    _faxify_mutex_active = bool(getattr(args, "faxify_profile_sampling", 0)) and args.faxify_p > 0
+    _use_dynamic_pipeline = _use_per_image_pipeline or _faxify_mutex_active
+
+    _ink_phase = _base_paper_phase = _post_phase = None
+    _base_paper_phase_no_mutex = _post_phase_no_mutex = None
+
+    if _use_dynamic_pipeline:
+        _ink_phase = _build_ink_phase(args)
+        _base_paper_phase = _build_paper_phase(args)
+        _post_phase = _build_post_phase(args)
+        if _faxify_mutex_active:
+            _args_no_mutex = copy.copy(args)
+            for _attr in _FAXIFY_MUTEX_P_ATTRS:
+                setattr(_args_no_mutex, _attr, 0.0)
+            _base_paper_phase_no_mutex = _build_paper_phase(_args_no_mutex)
+            _post_phase_no_mutex = _build_post_phase(_args_no_mutex)
+
+    resample_set = set(resample_indices) if resample_indices is not None else None
+    n = len(source_dataset)
+    rows = []
+
+    for i in range(n):
+        if resample_set is not None and i not in resample_set:
+            # Keep existing augmented row unchanged
+            existing_row = existing_dataset[i]
+            rows.append({
+                "image":       existing_row["image"],
+                "page":        existing_row["page"],
+                "annotations": existing_row["annotations"],
+            })
+            continue
+
+        row = source_dataset[i]
+        img_bgr = cv2.cvtColor(np.array(row["image"]), cv2.COLOR_RGB2BGR)
+
+        augmented = _augment_single_image(
+            img_bgr, args, pipeline,
+            _use_dynamic_pipeline, _faxify_mutex_active,
+            _ink_phase, _base_paper_phase, _post_phase,
+            _base_paper_phase_no_mutex if _faxify_mutex_active else None,
+            _post_phase_no_mutex if _faxify_mutex_active else None,
+        )
+
+        pil_aug = Image.fromarray(cv2.cvtColor(augmented, cv2.COLOR_BGR2RGB))
+        rows.append({
+            "image":       pil_aug,
+            "page":        row["page"],
+            "annotations": row["annotations"],
+        })
+        logger.debug(f"  Augmented row {i}")
+
+    n_augmented = n if resample_set is None else len(resample_set)
+    logger.info(f"Augmented {n_augmented} row(s); output split has {n} rows total")
+    return Dataset.from_list(rows).cast_column("image", HFImage())
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -1380,11 +1500,88 @@ def main():
     parser.add_argument("--faxify_profile_sampling", type=int, default=0)
     parser.add_argument("--faxify_profile_weights", type=float, nargs=3, default=[0.33, 0.34, 0.33])
 
+    # ── HF Dataset mode ──────────────────────────────────────────────────────
+    parser.add_argument("--input_dataset", type=str, default=None,
+                        help="Local path or HF repo ID of the source dataset (activates dataset mode)")
+    parser.add_argument("--input_split", type=str, default="base",
+                        help="Split name to read from the source dataset")
+    parser.add_argument("--output_dataset", type=str, default=None,
+                        help="Local path or HF repo ID for the output dataset (defaults to --input_dataset)")
+    parser.add_argument("--output_split", type=str, default=None,
+                        help="Split name for the output dataset (required in dataset mode)")
+    parser.add_argument("--resample_ids", type=int, nargs="+", default=None,
+                        help="Row indices (0-based) in the output split to re-augment and replace")
+    parser.add_argument("--push_to_hub", action="store_true",
+                        help="Push the output dataset to the HF Hub (dataset mode only)")
+
     args = parser.parse_args()
 
     logger = init_logger(__name__, level=args.log_level)
     set_seed(args.seed)
 
+    # ── Dataset mode ─────────────────────────────────────────────────────────
+    if args.input_dataset is not None:
+        if args.output_split is None:
+            logger.error("--output_split is required in dataset mode")
+            return
+
+        if args.num_augmentations != 1:
+            logger.warning(
+                f"--num_augmentations={args.num_augmentations} is ignored in dataset mode "
+                "(exactly one augmented image is produced per source row)"
+            )
+
+        output_dataset_path = args.output_dataset or args.input_dataset
+
+        # Load source split (local path or HF Hub)
+        source_dir = Path(args.input_dataset) / args.input_split
+        if source_dir.is_dir():
+            from datasets import load_from_disk as _load_disk
+            source = _load_disk(str(source_dir))
+            logger.info(
+                f"Loaded source split '{args.input_split}' from {args.input_dataset} ({len(source)} rows)"
+            )
+        else:
+            from datasets import load_dataset as _load_hub
+            source = _load_hub(args.input_dataset, split=args.input_split)
+            logger.info(
+                f"Loaded source split '{args.input_split}' from HF Hub: {args.input_dataset} ({len(source)} rows)"
+            )
+
+        # Load existing output split when re-sampling
+        existing = None
+        if args.resample_ids is not None:
+            out_dir = Path(output_dataset_path) / args.output_split
+            if not out_dir.is_dir():
+                logger.error(
+                    f"--resample_ids requires the output split to already exist at {out_dir}"
+                )
+                return
+            from datasets import load_from_disk as _load_disk
+            existing = _load_disk(str(out_dir))
+            logger.info(
+                f"Re-sampling {len(args.resample_ids)} row(s) in existing split "
+                f"'{args.output_split}' at {output_dataset_path}"
+            )
+
+        pipeline = build_pipeline(args)
+        augmented = augment_dataset_split(
+            source, args, pipeline, logger,
+            resample_indices=args.resample_ids,
+            existing_dataset=existing,
+        )
+
+        if args.push_to_hub:
+            login()
+            DatasetDict({args.output_split: augmented}).push_to_hub(output_dataset_path)
+            logger.info(f"Pushed split '{args.output_split}' to HF Hub: {output_dataset_path}")
+        else:
+            out_path = Path(output_dataset_path) / args.output_split
+            augmented.save_to_disk(str(out_path))
+            logger.info(f"Saved split '{args.output_split}' to: {out_path}")
+        return
+
+    # ── Dir mode (original behavior) ─────────────────────────────────────────
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir) / args.run_name
     output_dir.mkdir(parents=True, exist_ok=True)
