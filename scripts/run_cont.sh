@@ -4,29 +4,29 @@
 # Usage:
 #   ./scripts/run_cont.sh                                                    # interactive shell
 #   ./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py --config ...  # run a command
-#   ./scripts/run_cont.sh -p 5151 python3 src/analysis/visualize_dataset.py  # expose a port (host:container)
-#   ./scripts/run_cont.sh -p python3 src/analysis/visualize_dataset.py       # expose port 37341 (default)
+#   ./scripts/run_cont.sh -j                                                 # start Jupyter on port 8888
+#   ./scripts/run_cont.sh -j 8899                                            # start Jupyter on external port 8899
 
 IMAGE_NAME=deid
 CONT_WORKDIR=/workdir
-DEFAULT_EXT_PORT=37341
-INTERNAL_PORT=5151
+JUPYTER_PORT=8888
 
 # Load .env if present (set default if not specified)
 set -a; [ -f .env ] && source .env; set +a
 
-# Parse optional -p flag (must come before the command)
-# Maps EXTERNAL_PORT:INTERNAL_PORT — internal port is always $INTERNAL_PORT
+# Parse optional -j flag (must come before any command)
+# Starts a Jupyter notebook server; maps EXTERNAL_PORT:8888 (default external = 8888)
 PORT_ARGS=""
-if [ "${1}" = "-p" ]; then
+if [ "${1}" = "-j" ]; then
     shift
-    # If next arg looks like a port number, use it as the external port; otherwise use the default
     if [[ "${1}" =~ ^[0-9]+$ ]]; then
-        PORT_ARGS="-p ${1}:${INTERNAL_PORT}"
+        PORT_ARGS="-p ${1}:${JUPYTER_PORT}"
         shift
     else
-        PORT_ARGS="-p ${DEFAULT_EXT_PORT}:${INTERNAL_PORT}"
+        PORT_ARGS="-p ${JUPYTER_PORT}:${JUPYTER_PORT}"
     fi
+    set -- jupyter notebook --ip=0.0.0.0 --no-browser --port=${JUPYTER_PORT} \
+        --NotebookApp.token='' --NotebookApp.password='' --allow-root
 fi
 
 if [ $# -eq 0 ]; then
