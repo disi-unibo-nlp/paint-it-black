@@ -158,7 +158,6 @@ def build_dataset(instances: List[dict], dpi: int, logger: Logger) -> Dataset:
             rows.append({
                 "image": pil_img,
                 "page": page_num,
-                "pdf_path": inst["pdf_path"],
                 "annotations": inst["annotations"].get(page_key, []),
             })
     logger.info(f"Built dataset with {len(rows)} rows from {len(instances)} PDFs")

@@ -1,5 +1,5 @@
 """
-Tests for the page-level sampling feature in augment_pdfs.py.
+Tests for the page-level sampling feature in augment_dataset.py.
 
 Tests cover:
 - ColorPaper and SubtleNoise are excluded from the augraphy pipeline when page sampling is on
@@ -737,7 +737,7 @@ def test_empty_tuple_sentinel_suppresses_fallback():
         faxify_p=0.0,
     )
     # Spy on the fallback constructor to confirm it is never called
-    with patch("dataprep.augment_pdfs.RealisticMarkup") as mock_markup_cls:
+    with patch("dataprep.augment_dataset.RealisticMarkup") as mock_markup_cls:
         _apply_page_sampled_augmentations(img, args, precomputed_markup=())
 
     assert mock_markup_cls.call_count == 0, (
@@ -782,7 +782,7 @@ def test_stains_profile_fires_when_p1():
         faxify_p=0.0,
         annotations_p=0.0,
     )
-    with patch("dataprep.augment_pdfs.Stains") as mock_cls:
+    with patch("dataprep.augment_dataset.Stains") as mock_cls:
         mock_cls.return_value.return_value = img.copy()
         _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=False)
     assert mock_cls.call_count == 1, (
@@ -807,7 +807,7 @@ def test_stains_profile_suppressed_when_faxify_fires():
         faxify_p=0.0,
         annotations_p=0.0,
     )
-    with patch("dataprep.augment_pdfs.Stains") as mock_cls:
+    with patch("dataprep.augment_dataset.Stains") as mock_cls:
         mock_cls.return_value.return_value = img.copy()
         _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=True)
     assert mock_cls.call_count == 0, (
@@ -832,7 +832,7 @@ def test_stains_profile_selects_correct_profile():
         faxify_p=0.0,
         annotations_p=0.0,
     )
-    with patch("dataprep.augment_pdfs.Stains") as mock_cls:
+    with patch("dataprep.augment_dataset.Stains") as mock_cls:
         mock_cls.return_value.return_value = img.copy()
         _apply_page_sampled_augmentations(img, args, faxify_pre_rolled=False)
     assert mock_cls.call_count == 1, f"Expected Stains called once, got {mock_cls.call_count}"
