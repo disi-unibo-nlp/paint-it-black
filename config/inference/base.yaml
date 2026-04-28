@@ -1,0 +1,24 @@
+run_name: inference_run
+log_level: INFO
+seed: 42
+
+# Dataset
+input_dataset: data/test_ds
+input_split: base
+output_dir: output/inference
+
+# Prompt template
+template: templates/deid_template.yaml
+
+# Backend — run_vllm_inference.sh sets base_url automatically;
+# set manually here only when connecting to an already-running server.
+backend: vllm
+model: Qwen/Qwen3-VL-2B-Thinking
+base_url: http://localhost:8000/v1
+api_key: EMPTY
+max_new_tokens: 2048
+timeout: 120
+max_retries: 3
+
+# Evaluation
+iou_thresholds: [0.25, 0.5, 0.75]

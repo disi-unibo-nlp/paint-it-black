@@ -8,3 +8,5 @@ numpy
 notebook
 ipykernel
 ipywidgets
+openai
+pytest

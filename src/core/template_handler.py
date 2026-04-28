@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Optional, Union
 from pathlib import Path
+import base64
+import io
 import re
 import yaml
 
@@ -50,6 +52,13 @@ class ParsedOutput:
     success: bool
     format_quality: float
     fields: dict
+
+
+def _encode_image(pil_image) -> str:
+    buf = io.BytesIO()
+    pil_image.convert("RGB").save(buf, format="JPEG")
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/jpeg;base64,{b64}"
 
 
 class TemplateHandler:
@@ -147,17 +156,31 @@ class TemplateHandler:
         Args:
             include_last_assistant: If True and the last message has role "assistant",
                                     include it (used for SFT target formatting).
-            **kwargs: Values for {placeholder} slots in message content strings.
+            **kwargs: Values for {placeholder} slots. String values replace {name}
+                      tokens; PIL.Image values are base64-encoded when referenced
+                      by an image content block.
 
         Returns:
-            List of {"role": ..., "content": ...} dicts ready to pass to a tokenizer.
+            List of {"role": ..., "content": ...} dicts in OpenAI API format.
+            Content is a plain string for text-only messages or a list of typed
+            blocks for multimodal messages.
         """
         messages = []
         for i, msg in enumerate(self.messages):
             is_last = i == len(self.messages) - 1
             if is_last and msg["role"] == "assistant" and not include_last_assistant:
                 continue
-            content = msg["content"].format(**kwargs)
+            raw_content = msg["content"]
+            if isinstance(raw_content, str):
+                content = raw_content.format(**kwargs)
+            else:
+                content = []
+                for block in raw_content:
+                    if block["type"] == "text":
+                        content.append({"type": "text", "text": block["text"].format(**kwargs)})
+                    elif block["type"] == "image":
+                        image = kwargs[block["variable"]]
+                        content.append({"type": "image_url", "image_url": {"url": _encode_image(image)}})
             messages.append({"role": msg["role"], "content": content})
         return messages
 

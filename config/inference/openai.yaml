@@ -1,0 +1,19 @@
+run_name: inference_openai
+log_level: INFO
+seed: 42
+
+input_dataset: data/test_ds
+input_split: base
+output_dir: output/inference
+
+template: templates/deid_template.yaml
+
+backend: openai
+model: gpt-4o
+base_url: https://api.openai.com/v1
+api_key: EMPTY  # override via CLI: --api_key $OPENAI_API_KEY
+max_new_tokens: 2048
+timeout: 60
+max_retries: 3
+
+iou_thresholds: [0.25, 0.5, 0.75]

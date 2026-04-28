@@ -2,13 +2,64 @@
 
 ## Overview
 
-_TODO: brief description of the project — goals, scope, target models/tasks._
+A benchmark pipeline for evaluating multimodal large language models on the task of **medical document de-identification**. The project covers the full workflow from raw annotated PDFs to structured evaluation results:
+
+1. **Annotation** — browser-based tool for drawing PHI bounding boxes on PDF pages.
+2. **Dataset building** — convert annotated PDFs into a HuggingFace `Dataset` with image + label columns.
+3. **Augmentation** — simulate realistic hospital scan degradation (fax, stains, noise, skew, …) to create difficulty levels.
+4. **Review** — Jupyter notebook for visual QA and rejection marking of augmented samples.
+5. **Inference** — run any OpenAI-compatible vision-language model on each document page, extract predicted PHI entities, and compute a comprehensive suite of benchmark metrics.
 
 ---
 
 ## Project Structure
 
-_TODO: annotated directory tree._
+```
+multimodal-deid/
+├── config/
+│   ├── dataprep/               # Augmentation configs (presets + per-augmentation examples)
+│   └── inference/
+│       ├── base.yaml           # Default inference config (local VLLM backend)
+│       └── openai.yaml         # Remote OpenAI backend config
+├── data/                       # Not tracked — populated by the user
+│   ├── dev_annotation_cases/   # Raw PDF + annotation.json pairs for dataset building
+│   └── test_ds/                # Output HF dataset (base / medium / hard splits)
+├── docker/
+│   ├── Dockerfile              # Based on vllm/vllm-openai; adds project deps
+│   └── requirements.txt
+├── experiments/
+│   ├── augment_tuning.sh       # Run all augmentation example configs for visual tuning
+│   ├── create_dataset.sh       # End-to-end dataset build + augmentation workflow
+│   └── run_inference.sh        # Benchmark inference across splits
+├── output/                     # Augmented PNGs and inference results (not tracked)
+├── scripts/
+│   ├── build_image.sh          # Build the Docker image
+│   ├── run_cont.sh             # Run any command inside the container
+│   ├── run_job.sh              # SLURM HPC submission wrapper
+│   └── run_vllm_inference.sh   # Start VLLM serve + inference in one container
+├── src/
+│   ├── analysis/
+│   │   └── review_augmentations.ipynb   # Jupyter QA notebook
+│   ├── core/
+│   │   ├── llm_client.py       # OpenAI-compatible client with retry logic
+│   │   ├── template_handler.py # Prompt template loader + output parser (multimodal-aware)
+│   │   └── utils.py            # ConfigArgumentParser, logging, seed, output dir helpers
+│   ├── dataprep/
+│   │   ├── annotation_app.html # Standalone browser annotation tool (no server needed)
+│   │   ├── augment_pdfs.py     # PDF → augmented PNG pipeline
+│   │   └── build_dataset.py    # Annotated PDFs → HuggingFace Dataset
+│   ├── inference/
+│   │   ├── metrics.py          # Full benchmark metric suite
+│   │   └── run_inference.py    # Main inference + evaluation script
+│   └── tests/
+│       ├── test_augment_dataset_hf.py
+│       ├── test_augment_page_sampling.py
+│       ├── test_llm_client.py
+│       └── test_metrics.py
+└── templates/
+    ├── deid_template.yaml      # Multimodal prompt template for de-identification
+    └── placeholder_template.yaml
+```
 
 ---
 
@@ -16,35 +67,264 @@ _TODO: annotated directory tree._
 
 ### Prerequisites
 
-_TODO: list system requirements (CUDA version, Docker, Poppler, etc.)._
-
-### Environment Setup
-
-_TODO: copy `.env.example` to `.env`, fill in tokens (HF_TOKEN, WANDB_API_KEY, etc.)._
+- **Docker** with GPU support (`nvidia-container-toolkit`)
+- **NVIDIA driver** compatible with CUDA 12.4
+- **~30 GB disk** for the Docker image (VLLM base is large)
+- `curl` on the host (used by `run_vllm_inference.sh` for the health check)
 
 ### Docker Build
 
-_TODO: `./scripts/build_image.sh` walkthrough._
+```bash
+./scripts/build_image.sh
+```
+
+The image is based on `vllm/vllm-openai:v0.8.5` with project-specific Python packages
+(`augraphy`, `datasets`, `pdf2image`, `openai`, …) installed on top.
+The first build downloads the full VLLM base image (~18 GB); subsequent builds are cached.
+
+### Environment
+
+Copy `.env.example` to `.env` (if present) and fill in any tokens needed for your setup
+(e.g. `HF_TOKEN` for gated models, `OPENAI_API_KEY` for remote inference).
+The `.env` file is sourced automatically by all `scripts/*.sh` wrappers.
 
 ---
 
-## Running the Pipeline
+## Running the Container
 
-### Interactive container
+All commands run from the **project root**.
 
-_TODO: `./scripts/run_cont.sh` with no args drops into a shell._
+```bash
+# Interactive shell
+./scripts/run_cont.sh
 
-### Single command
+# Run a single command
+./scripts/run_cont.sh python3 src/dataprep/build_dataset.py --help
 
-_TODO: `./scripts/run_cont.sh <command>` pattern._
+# Start Jupyter notebook server on port 8888 (VS Code Remote SSH: connect via Existing Jupyter Server)
+./scripts/run_cont.sh -j
 
-### SLURM (HPC)
+# Jupyter on a custom port
+./scripts/run_cont.sh -j 8899
+```
 
-_TODO: `./scripts/run_job.sh` usage and relevant SLURM env vars._
+`run_cont.sh` uses `--network host` so the container can reach host services
+(e.g. a VLLM server started separately). GPU device is configurable via
+`CUDA_VISIBLE_DEVICES` in `.env` (default: `1`).
 
 ---
 
 ## Data Preparation
+
+### 1 — Annotate
+
+Open `src/dataprep/annotation_app.html` in a browser (no server required — it uses the
+File System Access API). Click **Open Folder**, select a directory containing PDF files,
+draw bounding boxes for each PHI entity, assign labels, and save. The tool writes an
+`annotation.json` file into the same directory.
+
+Labels follow a `PARENT:SUBLABEL` convention (e.g. `NAME:PATIENT`, `ID:DOCUMENT_ID`).
+See the label list at the top of the HTML file.
+
+### 2 — Build Dataset
+
+```bash
+./scripts/run_cont.sh python3 src/dataprep/build_dataset.py \
+    --input_dir data/dev_annotation_cases \
+    --output_dir data/test_ds \
+    --split base \
+    --dpi 200
+```
+
+Produces a HuggingFace `Dataset` saved to `data/test_ds/base/` with columns:
+`image` (PIL), `page` (int), `annotations` (list of `{id, label, text, bboxes}`).
+Bounding boxes are normalised `[y_min, x_min, y_max, x_max]` in `[0, 1]`.
+
+### 3 — Augment
+
+```bash
+# Low-noise augmentation → medium split
+./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py \
+    --input_dataset data/test_ds \
+    --input_split base \
+    --output_split medium \
+    --config config/dataprep/low_noise_mix.yaml \
+    --seed 1
+
+# High-noise augmentation → hard split
+./scripts/run_cont.sh python3 src/dataprep/augment_pdfs.py \
+    --input_dataset data/test_ds \
+    --input_split base \
+    --output_split hard \
+    --config config/dataprep/high_noise_mix.yaml \
+    --seed 1
+```
+
+Or run the full end-to-end workflow:
+```bash
+./experiments/create_dataset.sh
+```
+
+See the [Data Augmentation Reference](#data-augmentation-reference) section below for the
+full config documentation.
+
+### 4 — Review Augmented Samples
+
+Start Jupyter and open the notebook:
+```bash
+./scripts/run_cont.sh -j
+# In VS Code: Kernel → Existing Jupyter Server → http://localhost:8888
+# Open: src/analysis/review_augmentations.ipynb
+```
+
+The notebook loads a dataset split, displays each page image with colour-coded bounding
+boxes, and lets you navigate and mark samples as rejected. State is saved to
+`data/test_ds/<split>/review.json` and can be resumed across sessions.
+
+---
+
+## Inference & Evaluation
+
+The inference pipeline runs a vision-language model on each document page image,
+extracts predicted PHI entities, and evaluates them against ground-truth annotations.
+
+### Quick Start (local VLLM)
+
+```bash
+./scripts/run_vllm_inference.sh \
+    --model Qwen/Qwen2.5-VL-7B-Instruct \
+    --config config/inference/base.yaml \
+    --input_dataset data/test_ds \
+    --input_split base \
+    --run_name eval_base
+```
+
+`run_vllm_inference.sh` starts `vllm serve` and the inference script **inside the same
+container** so `localhost:8000` is always reachable without any network configuration.
+
+Results are written to `output/inference/<run_name>/results.json`.
+
+### `run_vllm_inference.sh` Reference
+
+```
+Usage: ./scripts/run_vllm_inference.sh --model MODEL [vllm options] [inference options]
+
+VLLM serve options (consumed by this script):
+  --model MODEL                         Model name or HuggingFace path (required)
+  --vllm_port PORT                      Port for VLLM serve (default: 8000)
+  --vllm_gpu_memory_utilization FLOAT   GPU memory fraction (default: 0.9)
+  --vllm_max_model_len INT              Max token length — must exceed image tokens
+                                        + prompt tokens (default: 8192)
+  --vllm_tensor_parallel_size INT       Number of GPUs for tensor parallelism (default: 1)
+
+All other flags are forwarded verbatim to run_inference.py.
+```
+
+### Remote API Backend (OpenAI, etc.)
+
+For remote APIs no VLLM is needed — use `run_cont.sh` directly:
+
+```bash
+./scripts/run_cont.sh python3 src/inference/run_inference.py \
+    --config config/inference/openai.yaml \
+    --input_dataset data/test_ds \
+    --input_split base \
+    --api_key $OPENAI_API_KEY \
+    --run_name eval_gpt4o_base
+```
+
+### `run_inference.py` Reference
+
+```
+General:
+  --run_name STR          Label for this run; becomes the output subdirectory (default: inference_run)
+  --log_level STR         Logging verbosity (default: INFO)
+  --seed INT              Random seed (default: 42)
+
+Dataset:
+  --input_dataset PATH    Root of the HF dataset (e.g. data/test_ds) [required]
+  --input_split STR       Split to evaluate (default: base)
+  --output_dir PATH       Output root (default: output/inference)
+
+Template:
+  --template PATH         Prompt template YAML (default: templates/deid_template.yaml)
+
+Backend / API:
+  --backend STR           openai | vllm | anthropic (default: vllm)
+  --model STR             Model name [required]
+  --base_url URL          API base URL (default: http://localhost:8000/v1)
+  --api_key STR           API key; use EMPTY for local VLLM (default: EMPTY)
+  --max_new_tokens INT    Max tokens to generate (default: 2048)
+  --timeout INT           Request timeout in seconds (default: 120)
+  --max_retries INT       Retry attempts on transient errors (default: 3)
+
+Evaluation:
+  --iou_thresholds FLOAT+ IoU thresholds for end-to-end F1 (default: 0.25 0.5 0.75)
+```
+
+Config files under `config/inference/` follow the same key names and can be used via
+`--config config/inference/base.yaml`. CLI flags override config values.
+
+### Prompt Templates
+
+Templates live in `templates/` and are YAML files loaded by `TemplateHandler`. Content
+fields can be strings (text-only) or lists of typed blocks for multimodal messages:
+
+```yaml
+messages:
+  - role: system
+    content: "You are a de-identification expert..."
+  - role: user
+    content:
+      - type: image
+        variable: page_image     # PIL Image passed from the inference loop → base64 JPEG
+      - type: text
+        text: "List all PHI entities in this document page."
+
+output_fields:
+  - name: entities
+    pattern: null        # null = use the full model output as-is
+    required: true
+```
+
+The default template (`templates/deid_template.yaml`) instructs the model to return a
+JSON array of `{label, text, bboxes}` objects. Curly braces in template string content
+must be doubled (`{{`, `}}`) to avoid Python's `.format()` interpreting them as slots.
+
+### Metrics
+
+Results in `results.json` include:
+
+| Metric | Description |
+|---|---|
+| `entity_detection_f1` | P/R/F1 matching by label + text (char-F1 > 0.5), ignoring bbox. Micro + macro + per label. |
+| `end_to_end_f1` | P/R/F1 matching by label + bbox IoU > threshold. Reported at each configured threshold. Micro + macro + per label. |
+| `char_f1` | Mean SQuAD-style character-level F1 for text fields of matched pairs (IoU > 0.5). |
+| `edit_distance` | Mean normalised Levenshtein distance for matched pairs (0 = identical). |
+| `exact_match_rate` | Fraction of GT entities exactly reproduced (case-insensitive). |
+| `mean_iou` | Mean bbox IoU for entities matched by text + label. |
+| `hallucination_rate` | FP / (TP + FP) — predicted entities that don't correspond to any GT entity. Overall + per label. |
+| `miss_rate` | FN / (TP + FN) — GT entities not found by the model. Overall + per label. |
+| `coarse_f1` | Same as `entity_detection_f1` but with labels collapsed to their parent (e.g. `NAME:PATIENT` → `NAME`). |
+| `per_label_breakdown` | Full P/R/F1/TP/FP/FN table for every label. |
+| `label_confusion` | For FP predictions with bbox overlap against a GT entity of a different label: `{gt_label: {pred_label: count}}`. |
+| `format_compliance` | Fraction of samples where the model returned parseable JSON (0–1). |
+
+Multi-box entities (PHI spanning non-contiguous regions) are reduced to their
+axis-aligned enclosing rectangle for IoU computation.
+
+### Experiment Script
+
+`experiments/run_inference.sh` contains pre-configured calls across all splits and
+configurations. Edit `MODEL` and `DATASET_DIR` at the top, then:
+
+```bash
+./experiments/run_inference.sh
+```
+
+---
+
+## Data Augmentation Reference
 
 ### PDF Augmentation
 
@@ -346,11 +626,6 @@ All commands below assume you are in the project root and the Docker image has b
     --log_level DEBUG
 ```
 
-You can also use the experiment wrapper, which passes any extra flags through:
-```bash
-./scripts/run_cont.sh bash experiments/augment.sh --num_augmentations 3
-```
-
 ---
 
 #### Tips & Best Practices
@@ -378,27 +653,44 @@ Use the example configs in `config/dataprep/examples/` to visualise each effect 
 **Faxify and readability**
 Faxify heavily degrades text and should not co-occur with scanner noise, shadow cast, or stains. When `faxify_profile_sampling: 1`, these are automatically suppressed for any image where faxify fires (see [Faxify mutex](#faxify-mutex)). Set `faxify_p` to control the desired fax rate directly; the other augmentations' actual rates will be reduced proportionally.
 
-**Output naming and dataset tracking**
-The `page_NNN_aug_MMM.png` filename pattern encodes both the original page index and the augmentation index. This makes it straightforward to: (a) group all variants of the same source page, (b) link augmented images back to their originals for annotation purposes, and (c) implement stratified splits that keep all variants of a page in the same fold.
+**`max_model_len` for inference**
+Image tokens depend on resolution. At 200 DPI a full A4 page typically tokenises to 4 000–6 000 tokens with Qwen-VL models. The default `--vllm_max_model_len 8192` covers this; increase to `16384` for higher-resolution inputs or very long system prompts.
 
 ---
 
 ## Development
 
-### Project Layout
+### Core Utilities (`src/core/`)
 
-_TODO: annotated module descriptions._
+**`ConfigArgumentParser`** (`utils.py`) — wraps `argparse` with YAML config file support.
+Priority: explicit CLI args > config file values > `add_argument` defaults. Pass
+`--config path/to/config.yaml` (relative to the `config_dir` set at construction time,
+`.yaml` extension optional).
 
-### Adding a Custom Augmentation Preset
+**`TemplateHandler`** (`template_handler.py`) — loads prompt templates from YAML, fills
+`{placeholder}` slots in string content and `variable:` references in image blocks, and
+extracts structured fields from model output via regex. Multimodal messages (image +
+text) are built in OpenAI API format; PIL images are base64-encoded as JPEG automatically.
 
-_TODO: copy `config/dataprep/augment_config.yaml`, tune parameter values, and pass the new file via `--config`. No code changes needed._
+**`LLMClient`** (`llm_client.py`) — thin wrapper around `openai.OpenAI` with configurable
+retry logic (exponential backoff). Works with any OpenAI-compatible endpoint including
+local VLLM servers.
 
-### Core Utilities
+### Running Tests
 
-_TODO: `ConfigArgumentParser`, `init_logger`, `set_seed` — usage notes._
+```bash
+./scripts/run_cont.sh python3 -m pytest src/tests/ -v
+```
 
----
+Tests cover augmentation page-sampling logic, HF dataset mode, metrics computation, and
+the LLM client retry behaviour. All tests use mocks or synthetic data — no GPU or network
+access required.
 
-## Roadmap
+### SLURM / HPC
 
-_TODO: planned modules (model training, inference, evaluation, de-identification)._
+```bash
+./scripts/run_job.sh <command>
+```
+
+Wraps `sbatch` with the project's standard resource request. See the script header for
+configurable SLURM variables (`PARTITION`, `GPUS`, `MEM`, `TIME`).
