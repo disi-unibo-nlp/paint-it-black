@@ -11,7 +11,7 @@
 IMAGE_NAME=deid
 CONT_WORKDIR=/workdir
 JUPYTER_PORT=8888
-CUDA_VISIBLE_DEVICES=1
+CUDA_VISIBLE_DEVICES=0
 
 # Load .env if present (set default if not specified)
 set -a; [ -f .env ] && source .env; set +a
