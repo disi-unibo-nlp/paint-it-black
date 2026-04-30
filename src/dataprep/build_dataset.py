@@ -256,7 +256,7 @@ def main():
             logger.error("HF_TOKEN environment variable is not set — cannot push to Hub.")
             return
         login(token=token)
-        DatasetDict({args.split_name: dataset}).push_to_hub(args.output, private=True)
+        dataset.push_to_hub(args.output, split=args.split_name, private=True)
         logger.info(f"Pushed to HF Hub: {args.output} (split: {args.split_name})")
     else:
         out_path = Path(args.output) / args.split_name
