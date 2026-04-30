@@ -165,18 +165,26 @@ def build_dataset(instances: List[dict], dpi: int, logger: Logger) -> Dataset:
     dataset = Dataset.from_list(rows).cast_column("image", HFImage())
     return dataset
 
-def _log_annotation_stats(dataset: Dataset, logger: Logger) -> None:
+_RARE_THRESHOLD = 10  # show source PDFs for labels with at most this many occurrences
+
+def _log_annotation_stats(dataset: Dataset, instances: List[dict], logger: Logger) -> None:
     label_counts: Counter = Counter()
+    label_to_pdfs: dict = {}
     pages_with_annos = 0
     total_annos = 0
 
+    for inst in instances:
+        pdf_name = Path(inst["pdf_path"]).name
+        for annos in inst["annotations"].values():
+            for a in annos:
+                label = a["label"]
+                label_counts[label] += 1
+                label_to_pdfs.setdefault(label, set()).add(pdf_name)
+
     for row in dataset:
-        annos = row["annotations"]
-        total_annos += len(annos)
-        if annos:
+        if row["annotations"]:
             pages_with_annos += 1
-        for a in annos:
-            label_counts[a["label"]] += 1
+        total_annos += len(row["annotations"])
 
     total_pages = len(dataset)
     logger.info("─── Annotation Statistics ───────────────────────────────")
@@ -192,7 +200,11 @@ def _log_annotation_stats(dataset: Dataset, logger: Logger) -> None:
         max_count = max(label_counts.values())
         for label, count in sorted(label_counts.items(), key=lambda x: -x[1]):
             bar = "█" * int(20 * count / max_count)
-            logger.info("  %-32s %4d  %s", label, count, bar)
+            if count <= _RARE_THRESHOLD:
+                pdfs = ", ".join(sorted(label_to_pdfs[label]))
+                logger.info("  %-32s %4d  %s  ← %s", label, count, bar, pdfs)
+            else:
+                logger.info("  %-32s %4d  %s", label, count, bar)
 
         counts = list(label_counts.values())
         rarest, most_common = min(counts), max(counts)
@@ -221,10 +233,14 @@ def main():
 
     logger.info(f"Total valid instances: {len(instances)}")
     dataset = build_dataset(instances, args.dpi, logger)
-    _log_annotation_stats(dataset, logger)
+    _log_annotation_stats(dataset, instances, logger)
 
     if args.push_to_hub:
-        login()  # uses HF_TOKEN env var
+        token = os.environ.get("HF_TOKEN")
+        if not token:
+            logger.error("HF_TOKEN environment variable is not set — cannot push to Hub.")
+            return
+        login(token=token)
         DatasetDict({args.split_name: dataset}).push_to_hub(args.output)
         logger.info(f"Pushed to HF Hub: {args.output} (split: {args.split_name})")
     else:
