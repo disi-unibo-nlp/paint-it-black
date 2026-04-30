@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.utils import ConfigArgumentParser, init_logger, set_seed, make_output_dir
 from core.template_handler import TemplateHandler
 from core.llm_client import LLMClient
+from core.labels import load_labels
 from inference.metrics import compute_metrics
 
 logger = logging.getLogger(__name__)
@@ -66,12 +68,16 @@ def _build_parser() -> ConfigArgumentParser:
     # Evaluation
     parser.add_argument("--iou_thresholds", type=float, nargs="+", default=[0.25, 0.5, 0.75])
 
+    # Tracking
+    parser.add_argument("--wandb", action="store_true", default=False)
+
     return parser
 
 
 def _run(args) -> None:
     init_logger(args.log_level)
     set_seed(args.seed)
+    _init_wandb(args)
 
     if args.input_dataset is None:
         logger.error("--input_dataset is required.")
@@ -83,7 +89,8 @@ def _run(args) -> None:
     out_dir = make_output_dir(args.run_name, base=args.output_dir)
     logger.info("Output directory: %s", out_dir)
 
-    handler = TemplateHandler.from_yaml(args.template)
+    labels = load_labels()
+    handler = TemplateHandler.from_yaml(args.template, labels=labels)
     logger.info("Loaded template from %s", args.template)
 
     split_path = Path(args.input_dataset) / args.input_split
@@ -134,10 +141,12 @@ def _run(args) -> None:
         all_predictions=all_predictions,
         all_gt=all_gt,
         iou_thresholds=args.iou_thresholds,
+        label_set=labels,
         format_compliance=format_compliance,
     )
 
     _log_metrics_summary(metrics)
+    _log_wandb_metrics(metrics)
 
     output = {
         "args": vars(args),
@@ -165,6 +174,56 @@ def _log_metrics_summary(metrics: dict) -> None:
                 metrics["miss_rate"]["overall"])
     logger.info("Format compliance: %.3f", metrics["format_compliance"] or 0.0)
     logger.info("─────────────────────────────────────────────────────────")
+
+
+def _init_wandb(args) -> None:
+    if not getattr(args, "wandb", False):
+        return
+    if not os.environ.get("WANDB_API_KEY"):
+        logger.warning("wandb enabled but WANDB_API_KEY is not set — skipping wandb init.")
+        return
+    try:
+        import wandb
+        wandb.init(
+            project=os.environ.get("WANDB_PROJECT", "multimodal-deid"),
+            name=args.run_name,
+            config=vars(args),
+        )
+        logger.info("wandb run initialized: %s", wandb.run.url)
+    except Exception as exc:
+        logger.warning("wandb init failed: %r — continuing without tracking.", exc)
+
+
+def _log_wandb_metrics(metrics: dict) -> None:
+    try:
+        import wandb
+        if wandb.run is None:
+            return
+    except ImportError:
+        return
+
+    det = metrics["entity_detection_f1"]
+    e2e = metrics["end_to_end_f1"]
+
+    flat = {
+        "detection/micro/f1": det["micro"]["f1"],
+        "detection/micro/precision": det["micro"]["precision"],
+        "detection/micro/recall": det["micro"]["recall"],
+        "detection/macro_f1": det["macro_f1"],
+        "e2e/f1_at_0.25": e2e.get(0.25, {}).get("micro", {}).get("f1", 0.0),
+        "e2e/f1_at_0.5": e2e.get(0.5, {}).get("micro", {}).get("f1", 0.0),
+        "e2e/f1_at_0.75": e2e.get(0.75, {}).get("micro", {}).get("f1", 0.0),
+        "char_f1": metrics["char_f1"],
+        "exact_match_rate": metrics["exact_match_rate"],
+        "mean_iou": metrics["mean_iou"],
+        "hallucination_rate": metrics["hallucination_rate"]["overall"],
+        "miss_rate": metrics["miss_rate"]["overall"],
+        "format_compliance": metrics["format_compliance"] or 0.0,
+        **{f"per_label/{label}/f1": prf["f1"]
+           for label, prf in det["per_label"].items()},
+    }
+    wandb.log(flat)
+    wandb.summary.update(flat)
 
 
 if __name__ == "__main__":

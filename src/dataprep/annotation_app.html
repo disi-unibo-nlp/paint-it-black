@@ -547,14 +547,18 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
 // ║  LABEL CONFIGURATION                                                    ║
-// ║  ► This is the only place you need to edit to add/remove labels.        ║
+// ║                                                                          ║
+// ║  Label names are the source of truth in config/labels.yaml.             ║
+// ║  When adding/removing a label:                                           ║
+// ║    1. Edit config/labels.yaml (Python code and prompts read from there) ║
+// ║    2. Add/remove the entry below with color/fw/fh                        ║
 // ║                                                                          ║
 // ║  Name format rules:                                                      ║
 // ║    PARENT:SUBLABEL  — grouped label   (no spaces → use underscores)     ║
 // ║    STANDALONE       — no colon        (no spaces → use underscores)     ║
 // ║                                                                          ║
 // ║  Fields:                                                                 ║
-// ║    name   – stored value in JSON output                                  ║
+// ║    name   – stored value in JSON output (must match config/labels.yaml)  ║
 // ║    color  – hex color for the bounding box and badge                     ║
 // ║    fw/fh  – default fixed-box size as fraction of page width/height      ║
 // ╚══════════════════════════════════════════════════════════════════════════╝

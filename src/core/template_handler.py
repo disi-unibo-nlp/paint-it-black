@@ -124,17 +124,26 @@ class TemplateHandler:
         self.output_fields: list[OutputField] = output_fields or []
 
     @classmethod
-    def from_yaml(cls, path: Union[str, Path]) -> "TemplateHandler":
+    def from_yaml(cls, path: Union[str, Path], labels: Optional[list] = None) -> "TemplateHandler":
         """
         Load a TemplateHandler from a YAML file.
 
         The YAML must have a "messages" key and optionally an "output_fields" key.
         See class docstring for the expected format.
+
+        If `labels` is provided, the placeholder `{labels}` in any string message
+        content is replaced at load time with the comma-separated label list.
         """
         with open(path, "r") as f:
             data = yaml.safe_load(f)
 
         messages = data["messages"]
+
+        if labels:
+            labels_str = ", ".join(labels)
+            for msg in messages:
+                if isinstance(msg.get("content"), str):
+                    msg["content"] = msg["content"].replace("{labels}", labels_str)
 
         output_fields = []
         for fd in data.get("output_fields", []):

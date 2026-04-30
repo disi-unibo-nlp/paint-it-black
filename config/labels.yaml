@@ -1,0 +1,33 @@
+# Canonical PHI label names — source of truth for the whole project.
+#
+# When adding/removing labels:
+#   1. Edit this file
+#   2. Update src/dataprep/annotation_app.html (LABELS array, keep color/fw/fh metadata)
+#   templates/deid_template.yaml is auto-injected at load time — no manual edit needed.
+
+labels:
+  - NAME:PATIENT
+  - NAME:DOCTOR
+  - NAME:ASSOCIATE
+  - NAME:CLINIC
+  - NAME:DEPARTMENT
+  - NAME:UNIT
+  - DATE_OF_BIRTH:UNDER_89
+  - DATE_OF_BIRTH:OVER_89
+  - DATE
+  - AGE:UNDER_89
+  - AGE:OVER_89
+  - ID:PATIENT_ID
+  - ID:DOCUMENT_ID
+  - ID:SPECIMEN_ID
+  - ID:DOCTOR_ID
+  - ID:DEVICE_ID
+  - ID:EXAM_ID
+  - CONTACT:PATIENT
+  - CONTACT:DOCTOR
+  - CONTACT:ASSOCIATE
+  - CONTACT:CLINIC
+  - CONTACT:DEPARTMENT
+  - CONTACT:UNIT
+  - ADDRESS:PATIENT
+  - ADDRESS:CLINIC

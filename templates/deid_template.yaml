@@ -5,14 +5,7 @@ messages:
       Identify all Protected Health Information (PHI) in the document page image.
 
       For each PHI entity return:
-        label  – one of: NAME:PATIENT, NAME:DOCTOR, NAME:ASSOCIATE, NAME:CLINIC,
-                         NAME:DEPARTMENT, NAME:UNIT, DATE_OF_BIRTH:UNDER_89,
-                         DATE_OF_BIRTH:OVER_89, DATE, AGE:UNDER_89, AGE:OVER_89,
-                         ID:PATIENT_ID, ID:DOCUMENT_ID, ID:SPECIMEN_ID,
-                         ID:DOCTOR_ID, ID:DEVICE_ID, ID:EXAM_ID,
-                         CONTACT:PATIENT, CONTACT:DOCTOR, CONTACT:ASSOCIATE,
-                         CONTACT:CLINIC, CONTACT:DEPARTMENT, CONTACT:UNIT,
-                         ADDRESS:PATIENT, ADDRESS:CLINIC
+        label  – one of: {labels}
         text   – exact text string as it appears in the image
         bboxes – list of [y_min, x_min, y_max, x_max] bounding boxes, each
                  coordinate normalised to [0, 1] relative to page height/width.
