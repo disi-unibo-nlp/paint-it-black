@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 from logging import Logger
 from core.utils import ConfigArgumentParser, init_logger
+from core.labels import load_labels
 from datasets import Dataset, DatasetDict
 from datasets import Image as HFImage
 from huggingface_hub import login
@@ -86,9 +87,9 @@ def process_leaf_directory(leaf_dir: str, root_dir: str, logger: Logger) -> List
             skipped += 1
             continue
 
-        # WARNING: in_progress
-        if status == "in_progress":
-            logger.warning(f"{rel_pdf} — in_progress, skipping")
+        # WARNING: not completed
+        if status in ("pending", "in_progress"):
+            logger.warning(f"{rel_pdf} — {status}, skipping")
             skipped += 1
             continue
 
@@ -114,6 +115,7 @@ def process_leaf_directory(leaf_dir: str, root_dir: str, logger: Logger) -> List
         instances.append({
             "pdf_path": str(leaf / pdf_name),
             "annotations": pages,
+            "rel_dir": str(rel_leaf),
         })
 
     if skipped:
@@ -153,12 +155,18 @@ def build_dataset(instances: List[dict], dpi: int, logger: Logger) -> Dataset:
     rows = []
     for inst in instances:
         pages_images = convert_from_path(inst["pdf_path"], dpi=dpi)
+        doc_type    = Path(inst["rel_dir"]).parts[0]
+        total_pages = len(pages_images)
+        source_pdf  = Path(inst["pdf_path"]).name
         for i, pil_img in enumerate(pages_images):
             page_num = i + 1
             page_key = str(page_num)
             rows.append({
-                "image": pil_img,
-                "page": page_num,
+                "image":       pil_img,
+                "page":        page_num,
+                "total_pages": total_pages,
+                "doc_type":    doc_type,
+                "source_pdf":  source_pdf,
                 "annotations": inst["annotations"].get(page_key, []),
             })
     logger.info(f"Built dataset with {len(rows)} rows from {len(instances)} PDFs")
@@ -168,7 +176,7 @@ def build_dataset(instances: List[dict], dpi: int, logger: Logger) -> Dataset:
 _RARE_THRESHOLD = 10  # show source PDFs for labels with at most this many occurrences
 
 def _log_annotation_stats(dataset: Dataset, instances: List[dict], logger: Logger) -> None:
-    label_counts: Counter = Counter()
+    label_counts: Counter = Counter({label: 0 for label in load_labels()})
     label_to_pdfs: dict = {}
     pages_with_annos = 0
     total_annos = 0
@@ -197,12 +205,14 @@ def _log_annotation_stats(dataset: Dataset, instances: List[dict], logger: Logge
 
     if label_counts:
         logger.info("Label distribution (%d unique labels):", len(label_counts))
-        max_count = max(label_counts.values())
+        max_count = max(label_counts.values()) or 1
         for label, count in sorted(label_counts.items(), key=lambda x: -x[1]):
             bar = "█" * int(20 * count / max_count)
-            if count <= _RARE_THRESHOLD:
-                pdfs = ", ".join(sorted(label_to_pdfs[label]))
-                logger.info("  %-32s %4d  %s  ← %s", label, count, bar, pdfs)
+            pdfs = label_to_pdfs.get(label, set())
+            if count == 0:
+                logger.info("  %-32s %4d  (none)", label, count)
+            elif count <= _RARE_THRESHOLD:
+                logger.info("  %-32s %4d  %s  ← %s", label, count, bar, ", ".join(sorted(pdfs)))
             else:
                 logger.info("  %-32s %4d  %s", label, count, bar)
 
@@ -210,6 +220,11 @@ def _log_annotation_stats(dataset: Dataset, instances: List[dict], logger: Logge
         rarest, most_common = min(counts), max(counts)
         logger.info("Balance:  most common=%d  rarest=%d  imbalance ratio=%.1fx",
                     most_common, rarest, most_common / rarest if rarest else float("inf"))
+
+    dir_counts: Counter = Counter(inst["rel_dir"] for inst in instances)
+    logger.info("PDFs included per subdirectory (%d dirs):", len(dir_counts))
+    for rel_dir, count in sorted(dir_counts.items()):
+        logger.info("  %-48s %d PDF(s)", rel_dir + "/", count)
     logger.info("─────────────────────────────────────────────────────────")
 
 
@@ -241,7 +256,7 @@ def main():
             logger.error("HF_TOKEN environment variable is not set — cannot push to Hub.")
             return
         login(token=token)
-        DatasetDict({args.split_name: dataset}).push_to_hub(args.output)
+        DatasetDict({args.split_name: dataset}).push_to_hub(args.output, private=True)
         logger.info(f"Pushed to HF Hub: {args.output} (split: {args.split_name})")
     else:
         out_path = Path(args.output) / args.split_name

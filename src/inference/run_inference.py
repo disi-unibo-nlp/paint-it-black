@@ -127,10 +127,13 @@ def _run(args) -> None:
         all_predictions.append(entities)
         all_gt.append(row.get("annotations", []))
         per_sample_results.append({
-            "idx": idx,
-            "page": row.get("page"),
-            "predictions": entities,
-            "raw_output": raw,
+            "idx":          idx,
+            "page":         row.get("page"),
+            "total_pages":  row.get("total_pages"),
+            "doc_type":     row.get("doc_type"),
+            "source_pdf":   row.get("source_pdf"),
+            "predictions":  entities,
+            "raw_output":   raw,
             "parse_success": success,
         })
 
