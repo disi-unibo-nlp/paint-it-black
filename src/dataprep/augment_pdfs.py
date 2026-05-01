@@ -38,7 +38,7 @@ import numpy as np
 from pathlib import Path
 from pdf2image import convert_from_path
 from PIL import Image
-from datasets import Dataset, DatasetDict, load_from_disk
+from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
 from datasets import Image as HFImage
 from huggingface_hub import login
 from augraphy.augmentations.lib import smooth
@@ -79,6 +79,15 @@ from augraphy import (
 )
 
 from core.utils import ConfigArgumentParser, init_logger, set_seed
+
+# Augraphy bug: InkGenerator.apply_highlighter_effect builds std_range with np.ceil,
+# which returns numpy.float64, then passes it to random.randint which requires int.
+from augraphy.utilities import inkgenerator as _ig
+_orig_generate_noise_clusters = _ig.InkGenerator.generate_noise_clusters
+def _patched_generate_noise_clusters(self, image, n_clusters=(200, 200), n_samples=(300, 300), std_range=(5, 10)):
+    std_range = (int(std_range[0]), int(std_range[1]))
+    return _orig_generate_noise_clusters(self, image, n_clusters, n_samples, std_range)
+_ig.InkGenerator.generate_noise_clusters = _patched_generate_noise_clusters
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -1236,9 +1245,8 @@ def augment_dataset_split(
 
         pil_aug = Image.fromarray(cv2.cvtColor(augmented, cv2.COLOR_BGR2RGB))
         rows.append({
-            "image":       pil_aug,
-            "page":        row["page"],
-            "annotations": row["annotations"],
+            **{k: row[k] for k in row if k != "image"},
+            "image": pil_aug,
         })
         logger.debug(f"  Augmented row {i}")
 
@@ -1572,8 +1580,24 @@ def main():
         )
 
         if args.push_to_hub:
-            login()
-            DatasetDict({args.output_split: augmented}).push_to_hub(output_dataset_path)
+            import os
+            from huggingface_hub import login
+            token = os.environ.get("HF_TOKEN")
+            if not token:
+                logger.error("HF_TOKEN environment variable is not set — cannot push to Hub.")
+                return
+            login(token=token)
+            try:
+                current = dict(load_dataset(output_dataset_path))
+                logger.info("Loaded existing splits from Hub: %s", list(current.keys()))
+            except Exception:
+                current = {}
+            current[args.output_split] = augmented
+            compatible = {k: v for k, v in current.items() if v.features == augmented.features}
+            stale = set(current) - set(compatible)
+            if stale:
+                logger.warning("Dropping schema-incompatible splits (need rebuild): %s", sorted(stale))
+            DatasetDict(compatible).push_to_hub(output_dataset_path, private=True)
             logger.info(f"Pushed split '{args.output_split}' to HF Hub: {output_dataset_path}")
         else:
             out_path = Path(output_dataset_path) / args.output_split

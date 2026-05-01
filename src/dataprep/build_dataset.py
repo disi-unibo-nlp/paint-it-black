@@ -6,7 +6,7 @@ from typing import List
 from logging import Logger
 from core.utils import ConfigArgumentParser, init_logger
 from core.labels import load_labels
-from datasets import Dataset, DatasetDict
+from datasets import Dataset, DatasetDict, load_dataset
 from datasets import Image as HFImage
 from huggingface_hub import login
 from pdf2image import convert_from_path
@@ -225,6 +225,28 @@ def _log_annotation_stats(dataset: Dataset, instances: List[dict], logger: Logge
     logger.info("PDFs included per subdirectory (%d dirs):", len(dir_counts))
     for rel_dir, count in sorted(dir_counts.items()):
         logger.info("  %-48s %d PDF(s)", rel_dir + "/", count)
+
+    # ── Per-doc-type label breakdown ──────────────────────────────────────────
+    canonical = load_labels()
+    by_type: dict = {}
+    for inst in instances:
+        doc_type = Path(inst["rel_dir"]).parts[0]
+        counts = by_type.setdefault(doc_type, Counter({l: 0 for l in canonical}))
+        for annos in inst["annotations"].values():
+            for a in annos:
+                counts[a["label"]] += 1
+
+    for doc_type, counts in sorted(by_type.items()):
+        total = sum(counts.values())
+        logger.info("── %s  (%d annotations) ──", doc_type, total)
+        max_count = max(counts.values()) or 1
+        for label, count in sorted(counts.items(), key=lambda x: -x[1]):
+            bar = "█" * int(20 * count / max_count)
+            if count == 0:
+                logger.info("  %-32s %4d  (none)", label, count)
+            else:
+                logger.info("  %-32s %4d  %s", label, count, bar)
+
     logger.info("─────────────────────────────────────────────────────────")
 
 
@@ -256,7 +278,17 @@ def main():
             logger.error("HF_TOKEN environment variable is not set — cannot push to Hub.")
             return
         login(token=token)
-        dataset.push_to_hub(args.output, split=args.split_name, private=True)
+        try:
+            current = dict(load_dataset(args.output))
+            logger.info("Loaded existing splits from Hub: %s", list(current.keys()))
+        except Exception:
+            current = {}
+        current[args.split_name] = dataset
+        compatible = {k: v for k, v in current.items() if v.features == dataset.features}
+        stale = set(current) - set(compatible)
+        if stale:
+            logger.warning("Dropping schema-incompatible splits (need rebuild): %s", sorted(stale))
+        DatasetDict(compatible).push_to_hub(args.output, private=True)
         logger.info(f"Pushed to HF Hub: {args.output} (split: {args.split_name})")
     else:
         out_path = Path(args.output) / args.split_name
