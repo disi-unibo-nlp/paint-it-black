@@ -12,7 +12,7 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 # Project dependencies
-COPY docker/requirements.txt .
+COPY docker/3090/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # src/ is on PYTHONPATH so imports work as: from core.utils import ...
