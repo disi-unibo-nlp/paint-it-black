@@ -6,9 +6,10 @@ A benchmark pipeline for evaluating multimodal large language models on the task
 
 1. **Annotation** — browser-based tool for drawing PHI bounding boxes on PDF pages.
 2. **Dataset building** — convert annotated PDFs into a HuggingFace `Dataset` with image + label columns.
-3. **Augmentation** — simulate realistic hospital scan degradation (fax, stains, noise, skew, …) to create difficulty levels.
-4. **Review** — Jupyter notebook for visual QA and rejection marking of augmented samples.
-5. **Inference** — run any OpenAI-compatible vision-language model on each document page, extract predicted PHI entities, and compute a comprehensive suite of benchmark metrics.
+3. **Analysis** — compute comprehensive statistics on dataset composition and label distribution.
+4. **Augmentation** — simulate realistic hospital scan degradation (fax, stains, noise, skew, …) to create difficulty levels.
+5. **Review** — Jupyter notebook for visual QA and rejection marking of augmented samples.
+6. **Inference** — run any OpenAI-compatible vision-language model on each document page, extract predicted PHI entities, and compute a comprehensive suite of benchmark metrics.
 
 ---
 
@@ -39,6 +40,8 @@ multimodal-deid/
 │   └── run_vllm_inference.sh   # Start VLLM serve + inference in one container
 ├── src/
 │   ├── analysis/
+│   │   ├── analyze_dataset.py           # Dataset statistics analyzer
+│   │   ├── render_dataset.py            # Render dataset pages with bounding boxes
 │   │   └── review_augmentations.ipynb   # Jupyter QA notebook
 │   ├── core/
 │   │   ├── llm_client.py       # OpenAI-compatible client with retry logic
@@ -52,6 +55,7 @@ multimodal-deid/
 │   │   ├── metrics.py          # Full benchmark metric suite
 │   │   └── run_inference.py    # Main inference + evaluation script
 │   └── tests/
+│       ├── test_analyze_dataset.py
 │       ├── test_augment_dataset_hf.py
 │       ├── test_augment_page_sampling.py
 │       ├── test_llm_client.py
@@ -139,6 +143,38 @@ See the label list at the top of the HTML file.
 Produces a HuggingFace `Dataset` saved to `data/test_ds/base/` with columns:
 `image` (PIL), `page` (int), `annotations` (list of `{id, label, text, bboxes}`).
 Bounding boxes are normalised `[y_min, x_min, y_max, x_max]` in `[0, 1]`.
+
+#### Analyze Dataset Statistics
+
+After building a dataset, you can analyze its statistics using the standalone analyzer:
+
+```bash
+# Analyze a local dataset
+./scripts/run_cont.sh python3 src/analysis/analyze_dataset.py \
+    --dataset data/test_ds \
+    --split base \
+    --local
+
+# Analyze a dataset from HuggingFace Hub
+./scripts/run_cont.sh python3 src/analysis/analyze_dataset.py \
+    --dataset dfreddi/multimodal-deid \
+    --split base
+```
+
+The analyzer prints comprehensive statistics including:
+- **Page counts** — total pages, pages with annotations, empty pages
+- **Annotation counts** — total annotations, averages per page and per annotated page
+- **Label distribution** — visual bar charts showing frequency of each PHI label type
+- **Rare labels** — labels with ≤10 occurrences, showing which source PDFs contain them
+- **Balance metrics** — most/least common labels and imbalance ratio
+- **PDFs per doc_type** — breakdown of documents by type (medical, legal, etc.)
+- **Per-doc-type label breakdown** — label distribution within each document type
+
+This is useful for:
+- Verifying annotation coverage before augmentation
+- Identifying underrepresented PHI types that need more examples
+- Quality checking after dataset updates
+- Comparing statistics across different dataset splits
 
 ### 3 — Augment
 
