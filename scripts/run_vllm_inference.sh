@@ -50,18 +50,48 @@ fi
 # Load .env if present
 set -a; [ -f .env ] && source .env; set +a
 
+# Validate HF_HOME
+if [ -z "$HF_HOME" ]; then
+    echo "ERROR: HF_HOME not set in .env"
+    exit 1
+fi
+
+if [ ! -d "$HF_HOME" ]; then
+    echo "WARNING: HF_HOME directory does not exist: $HF_HOME"
+    echo "Creating directory..."
+    mkdir -p "$HF_HOME"
+fi
+
+echo "Using HuggingFace cache directory: $HF_HOME"
+
+# Report cache size if directory exists and is not empty
+if [ -d "$HF_HOME/hub" ]; then
+    CACHE_SIZE=$(du -sh "$HF_HOME/hub" 2>/dev/null | cut -f1)
+    echo "HuggingFace cache size: $CACHE_SIZE"
+else
+    echo "HuggingFace cache is empty - first run will download model"
+fi
+
 # Build the quoted inference args string for bash -c
 INFERENCE_ARGS_STR=""
 for arg in "${INFERENCE_ARGS[@]}"; do
     INFERENCE_ARGS_STR="$INFERENCE_ARGS_STR $(printf '%q' "$arg")"
 done
 
+# Create safe model name for log file (replace / with _)
+MODEL_SAFE="${MODEL//\//_}"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+VLLM_LOG_FILE="output/vllm_${MODEL_SAFE}_${TIMESTAMP}.log"
+
 INNER_CMD="
+mkdir -p output
+
 vllm serve '$MODEL' \
     --port $VLLM_PORT \
     --gpu-memory-utilization $GPU_MEM \
     --max-model-len $MAX_MODEL_LEN \
-    --tensor-parallel-size $TENSOR_PARALLEL &
+    --tensor-parallel-size $TENSOR_PARALLEL \
+    > $VLLM_LOG_FILE 2>&1 &
 VLLM_PID=\$!
 
 echo '[run_vllm_inference] Waiting for VLLM server on port $VLLM_PORT ...'
@@ -70,6 +100,7 @@ until curl -sf http://localhost:$VLLM_PORT/health > /dev/null 2>&1; do
     echo '[run_vllm_inference] Still waiting...'
 done
 echo '[run_vllm_inference] VLLM server ready.'
+echo '[run_vllm_inference] VLLM logs: $VLLM_LOG_FILE'
 
 python3 src/inference/run_inference.py \
     --model '$MODEL' \
@@ -80,7 +111,8 @@ kill \$VLLM_PID
 wait \$VLLM_PID 2>/dev/null || true
 "
 
-docker run --rm \
+# Run container in detached mode
+CONTAINER_ID=$(docker run --rm -d \
     --gpus "device=$CUDA_VISIBLE_DEVICES" \
     -v ./src:$CONT_WORKDIR/src \
     -v ./config:$CONT_WORKDIR/config \
@@ -92,4 +124,18 @@ docker run --rm \
     -e HF_HOME=$HF_HOME \
     -e HF_TOKEN=$HF_TOKEN \
     -v $HF_HOME:$HF_HOME \
-    $IMAGE_NAME bash -c "$INNER_CMD"
+    $IMAGE_NAME bash -c "$INNER_CMD")
+
+echo ""
+echo "=========================================="
+echo "Docker container started: $CONTAINER_ID"
+echo "=========================================="
+echo ""
+echo "To monitor logs:"
+echo "  docker logs --follow $CONTAINER_ID"
+echo ""
+echo "To stop the container:"
+echo "  docker stop $CONTAINER_ID"
+echo ""
+echo "Container will auto-remove when finished."
+echo "=========================================="
