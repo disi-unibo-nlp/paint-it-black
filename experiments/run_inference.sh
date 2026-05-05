@@ -19,22 +19,22 @@ MODEL=Qwen/Qwen2.5-VL-3B-Instruct
     --run_name eval_base
 
 # ── 2. Medium split (low-noise augmentation) ─────────────────────────────────
-# ./scripts/run_vllm_inference.sh \
-#     --model $MODEL \
-#     --config config/inference/base.yaml \
-#     --input_dataset $DATASET_DIR \
-#     --input_split medium \
-#     --from_hub \
-#     --run_name eval_medium
+./scripts/run_vllm_inference.sh \
+    --model $MODEL \
+    --config config/inference/base.yaml \
+    --input_dataset $DATASET_DIR \
+    --input_split medium \
+    --from_hub \
+    --run_name eval_medium
 
 # ── 3. Hard split (high-noise augmentation) ──────────────────────────────────
-# ./scripts/run_vllm_inference.sh \
-#     --model $MODEL \
-#     --config config/inference/base.yaml \
-#     --input_dataset $DATASET_DIR \
-#     --input_split hard \
-#     --from_hub \
-#     --run_name eval_hard
+./scripts/run_vllm_inference.sh \
+    --model $MODEL \
+    --config config/inference/base.yaml \
+    --input_dataset $DATASET_DIR \
+    --input_split hard \
+    --from_hub \
+    --run_name eval_hard
 
 # ── 4. Base split with stricter IoU thresholds ───────────────────────────────
 # ./scripts/run_vllm_inference.sh \

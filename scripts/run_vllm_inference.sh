@@ -123,7 +123,7 @@ CONTAINER_ID=$(docker run --rm -d \
     -m 30g \
     -e HF_HOME=$HF_HOME \
     -e HF_TOKEN=$HF_TOKEN \
-    -v $HF_HOME:$HF_HOME \
+    -v $HF_HOME:$CONT_WORKDIR/$HF_HOME \
     $IMAGE_NAME bash -c "$INNER_CMD")
 
 echo ""
