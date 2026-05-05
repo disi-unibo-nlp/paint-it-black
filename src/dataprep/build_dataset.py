@@ -173,83 +173,6 @@ def build_dataset(instances: List[dict], dpi: int, logger: Logger) -> Dataset:
     dataset = Dataset.from_list(rows).cast_column("image", HFImage())
     return dataset
 
-_RARE_THRESHOLD = 10  # show source PDFs for labels with at most this many occurrences
-
-def _log_annotation_stats(dataset: Dataset, instances: List[dict], logger: Logger) -> None:
-    label_counts: Counter = Counter({label: 0 for label in load_labels()})
-    label_to_pdfs: dict = {}
-    pages_with_annos = 0
-    total_annos = 0
-
-    for inst in instances:
-        pdf_name = Path(inst["pdf_path"]).name
-        for annos in inst["annotations"].values():
-            for a in annos:
-                label = a["label"]
-                label_counts[label] += 1
-                label_to_pdfs.setdefault(label, set()).add(pdf_name)
-
-    for row in dataset:
-        if row["annotations"]:
-            pages_with_annos += 1
-        total_annos += len(row["annotations"])
-
-    total_pages = len(dataset)
-    logger.info("─── Annotation Statistics ───────────────────────────────")
-    logger.info("Pages:        %d total  |  %d with annotations  |  %d empty",
-                total_pages, pages_with_annos, total_pages - pages_with_annos)
-    logger.info("Annotations:  %d total  |  %.2f avg per page  |  %.2f avg per annotated page",
-                total_annos,
-                total_annos / total_pages if total_pages else 0,
-                total_annos / pages_with_annos if pages_with_annos else 0)
-
-    if label_counts:
-        logger.info("Label distribution (%d unique labels):", len(label_counts))
-        max_count = max(label_counts.values()) or 1
-        for label, count in sorted(label_counts.items(), key=lambda x: -x[1]):
-            bar = "█" * int(20 * count / max_count)
-            pdfs = label_to_pdfs.get(label, set())
-            if count == 0:
-                logger.info("  %-32s %4d  (none)", label, count)
-            elif count <= _RARE_THRESHOLD:
-                logger.info("  %-32s %4d  %s  ← %s", label, count, bar, ", ".join(sorted(pdfs)))
-            else:
-                logger.info("  %-32s %4d  %s", label, count, bar)
-
-        counts = list(label_counts.values())
-        rarest, most_common = min(counts), max(counts)
-        logger.info("Balance:  most common=%d  rarest=%d  imbalance ratio=%.1fx",
-                    most_common, rarest, most_common / rarest if rarest else float("inf"))
-
-    dir_counts: Counter = Counter(inst["rel_dir"] for inst in instances)
-    logger.info("PDFs included per subdirectory (%d dirs):", len(dir_counts))
-    for rel_dir, count in sorted(dir_counts.items()):
-        logger.info("  %-48s %d PDF(s)", rel_dir + "/", count)
-
-    # ── Per-doc-type label breakdown ──────────────────────────────────────────
-    canonical = load_labels()
-    by_type: dict = {}
-    for inst in instances:
-        doc_type = Path(inst["rel_dir"]).parts[0]
-        counts = by_type.setdefault(doc_type, Counter({l: 0 for l in canonical}))
-        for annos in inst["annotations"].values():
-            for a in annos:
-                counts[a["label"]] += 1
-
-    for doc_type, counts in sorted(by_type.items()):
-        total = sum(counts.values())
-        logger.info("── %s  (%d annotations) ──", doc_type, total)
-        max_count = max(counts.values()) or 1
-        for label, count in sorted(counts.items(), key=lambda x: -x[1]):
-            bar = "█" * int(20 * count / max_count)
-            if count == 0:
-                logger.info("  %-32s %4d  (none)", label, count)
-            else:
-                logger.info("  %-32s %4d  %s", label, count, bar)
-
-    logger.info("─────────────────────────────────────────────────────────")
-
-
 def main():
     parser = ConfigArgumentParser(description="Build dataset from annotated PDFs")
 
@@ -270,7 +193,6 @@ def main():
 
     logger.info(f"Total valid instances: {len(instances)}")
     dataset = build_dataset(instances, args.dpi, logger)
-    _log_annotation_stats(dataset, instances, logger)
 
     if args.push_to_hub:
         token = os.environ.get("HF_TOKEN")
