@@ -89,4 +89,7 @@ docker run --rm \
     -v ./output:$CONT_WORKDIR/output \
     -v ./data:$CONT_WORKDIR/data \
     -m 30g \
+    -e HF_HOME=$HF_HOME \
+    -e HF_TOKEN=$HF_TOKEN \
+    -v $HF_HOME:$HF_HOME \
     $IMAGE_NAME bash -c "$INNER_CMD"

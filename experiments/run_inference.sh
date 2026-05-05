@@ -6,7 +6,7 @@
 # Usage:
 #   ./experiments/run_inference.sh
 
-DATASET_DIR=./data/test_ds
+DATASET_DIR=dfreddi/multimodal-deid
 MODEL=Qwen/Qwen2.5-VL-3B-Instruct
 
 # ── 1. Base split (clean, no augmentation) ───────────────────────────────────
@@ -15,6 +15,7 @@ MODEL=Qwen/Qwen2.5-VL-3B-Instruct
     --config config/inference/base.yaml \
     --input_dataset $DATASET_DIR \
     --input_split base \
+    --from_hub \
     --run_name eval_base
 
 # ── 2. Medium split (low-noise augmentation) ─────────────────────────────────
@@ -23,6 +24,7 @@ MODEL=Qwen/Qwen2.5-VL-3B-Instruct
 #     --config config/inference/base.yaml \
 #     --input_dataset $DATASET_DIR \
 #     --input_split medium \
+#     --from_hub \
 #     --run_name eval_medium
 
 # ── 3. Hard split (high-noise augmentation) ──────────────────────────────────
@@ -31,6 +33,7 @@ MODEL=Qwen/Qwen2.5-VL-3B-Instruct
 #     --config config/inference/base.yaml \
 #     --input_dataset $DATASET_DIR \
 #     --input_split hard \
+#     --from_hub \
 #     --run_name eval_hard
 
 # ── 4. Base split with stricter IoU thresholds ───────────────────────────────
@@ -39,6 +42,7 @@ MODEL=Qwen/Qwen2.5-VL-3B-Instruct
 #     --config config/inference/base.yaml \
 #     --input_dataset $DATASET_DIR \
 #     --input_split base \
+#     --from_hub \
 #     --iou_thresholds 0.5 0.75 0.9 \
 #     --run_name eval_base_strict_iou
 
@@ -48,5 +52,6 @@ MODEL=Qwen/Qwen2.5-VL-3B-Instruct
 #     --config config/inference/openai.yaml \
 #     --input_dataset $DATASET_DIR \
 #     --input_split base \
+#     --from_hub \
 #     --api_key $OPENAI_API_KEY \
 #     --run_name eval_gpt4o_base

@@ -5,7 +5,8 @@ import re
 import sys
 from pathlib import Path
 
-from datasets import load_from_disk
+from datasets import load_from_disk, load_dataset
+from huggingface_hub import login
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -48,8 +49,10 @@ def _build_parser() -> ConfigArgumentParser:
 
     # Dataset
     parser.add_argument("--input_dataset", type=str, default=None,
-                        help="Path to HF dataset root (e.g. data/test_ds)")
+                        help="HF repo ID (with --from_hub) or local path to HF dataset root")
     parser.add_argument("--input_split", type=str, default="base")
+    parser.add_argument("--from_hub", action="store_true", default=False,
+                        help="Load dataset from HuggingFace Hub instead of local disk")
     parser.add_argument("--output_dir", type=str, default="output/inference")
 
     # Template
@@ -93,8 +96,21 @@ def _run(args) -> None:
     handler = TemplateHandler.from_yaml(args.template, labels=labels)
     logger.info("Loaded template from %s", args.template)
 
-    split_path = Path(args.input_dataset) / args.input_split
-    ds = load_from_disk(str(split_path))
+    # Optional HF authentication
+    token = os.environ.get("HF_TOKEN")
+    if token:
+        login(token=token)
+
+    # Load dataset
+    if args.from_hub:
+        logger.info("Loading dataset '%s' (split: %s) from HuggingFace Hub...",
+                    args.input_dataset, args.input_split)
+        ds = load_dataset(args.input_dataset, split=args.input_split)
+    else:
+        split_path = Path(args.input_dataset) / args.input_split
+        logger.info("Loading dataset from local path: %s", split_path)
+        ds = load_from_disk(str(split_path))
+
     logger.info("Loaded dataset split '%s': %d samples", args.input_split, len(ds))
 
     client = LLMClient(

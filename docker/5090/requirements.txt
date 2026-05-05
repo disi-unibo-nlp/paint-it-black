@@ -9,3 +9,4 @@ notebook
 ipykernel
 ipywidgets
 openai
+pytest

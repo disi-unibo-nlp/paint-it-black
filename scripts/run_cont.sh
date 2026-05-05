@@ -40,6 +40,8 @@ if [ $# -eq 0 ]; then
         -v ./data:$CONT_WORKDIR/data \
         -m 30g \
         -e HF_TOKEN=$HF_TOKEN \
+        -e HF_HOME=$HF_HOME \
+        -v $HF_HOME:$HF_HOME \
         $IMAGE_NAME
 else
     docker run --rm \
@@ -53,5 +55,7 @@ else
         -v ./data:$CONT_WORKDIR/data \
         -m 30g \
         -e HF_TOKEN=$HF_TOKEN \
+        -e HF_HOME=$HF_HOME \
+        -v $HF_HOME:$HF_HOME \
         $IMAGE_NAME "$@"
 fi
