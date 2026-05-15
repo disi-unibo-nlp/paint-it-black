@@ -19,10 +19,18 @@ from inference.metrics import compute_metrics
 logger = logging.getLogger(__name__)
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
 def _parse_json_output(text: str) -> tuple[list, bool]:
-    """Strip markdown fences and parse JSON. Returns (entities, success)."""
+    """Strip think blocks + markdown fences, then parse JSON. Returns (entities, success)."""
+    # Full <think>...</think> block (both tags present)
+    text = _THINK_RE.sub("", text)
+    # Bare </think>: vLLM strips the <think> special token but leaves </think> as plain text;
+    # everything before it is the thinking trace, so drop it all.
+    if "</think>" in text:
+        text = text[text.index("</think>") + len("</think>"):]
+    text = text.strip()
     m = _FENCE_RE.search(text)
     cleaned = m.group(1) if m else text.strip()
     try:
@@ -34,6 +42,29 @@ def _parse_json_output(text: str) -> tuple[list, bool]:
     except json.JSONDecodeError as exc:
         logger.warning("Failed to parse model output as JSON: %s\nOutput: %.200s", exc, text)
         return [], False
+
+
+def _rescale_entities(entities: list) -> list:
+    """
+    Rescale bbox coords from 0-1000 to 0-1, and fill missing 'text' with "".
+
+    If the model already returned 0-1 coords (all values ≤ 1.0) the function
+    leaves them unchanged, so it is safe to call unconditionally.
+    """
+    max_coord = max(
+        (c for ent in entities for bbox in ent.get("bboxes", []) for c in bbox),
+        default=0.0,
+    )
+    scale = 1000.0 if max_coord > 1.0 else 1.0
+
+    for ent in entities:
+        ent["bboxes"] = [
+            [max(0.0, min(1.0, c / scale)) for c in bbox]
+            for bbox in ent.get("bboxes", [])
+        ]
+        if "text" not in ent:
+            ent["text"] = ""
+    return entities
 
 
 def _build_parser() -> ConfigArgumentParser:
@@ -67,6 +98,20 @@ def _build_parser() -> ConfigArgumentParser:
     parser.add_argument("--max_new_tokens", type=int, default=2048)
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--max_retries", type=int, default=3)
+    parser.add_argument("--temperature", type=float, default=None,
+                        help="Sampling temperature (None = server default)")
+    parser.add_argument("--top_p", type=float, default=None,
+                        help="Top-p nucleus sampling (None = server default)")
+    parser.add_argument("--top_k", type=int, default=None,
+                        help="Top-k sampling, vLLM extension via extra_body (None = server default)")
+    parser.add_argument("--min_p", type=float, default=None,
+                        help="Min-p sampling, vLLM extension via extra_body (None = server default)")
+    parser.add_argument("--enable_thinking", action="store_true", default=False,
+                        help="Pass chat_template_kwargs={enable_thinking:True} to vLLM (Qwen3 thinking models)")
+
+    # Dataset cap
+    parser.add_argument("--max_samples", type=int, default=None,
+                        help="Cap the number of samples processed (useful for quick checks)")
 
     # Evaluation
     parser.add_argument("--iou_thresholds", type=float, nargs="+", default=[0.25, 0.5, 0.75])
@@ -113,6 +158,10 @@ def _run(args) -> None:
 
     logger.info("Loaded dataset split '%s': %d samples", args.input_split, len(ds))
 
+    if args.max_samples is not None:
+        ds = ds.select(range(min(args.max_samples, len(ds))))
+        logger.info("Capped to %d samples (--max_samples)", len(ds))
+
     client = LLMClient(
         base_url=args.base_url,
         api_key=args.api_key,
@@ -120,6 +169,11 @@ def _run(args) -> None:
         max_new_tokens=args.max_new_tokens,
         timeout=args.timeout,
         max_retries=args.max_retries,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        top_k=args.top_k,
+        min_p=args.min_p,
+        enable_thinking=args.enable_thinking,
     )
 
     per_sample_results = []
@@ -133,6 +187,8 @@ def _run(args) -> None:
             messages = handler.format(page_image=row["image"])
             raw = client.complete(messages)
             entities, success = _parse_json_output(raw)
+            if success:
+                entities = _rescale_entities(entities)
         except Exception as exc:
             logger.error("Error on sample %d: %r", idx, exc)
             raw, entities, success = "", [], False

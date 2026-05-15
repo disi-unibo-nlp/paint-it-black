@@ -7,8 +7,9 @@ messages:
       For each PHI entity return:
         label  – one of: {labels}
         text   – exact text string as it appears in the image
-        bboxes – list of [y_min, x_min, y_max, x_max] bounding boxes, each
-                 coordinate normalised to [0, 1] relative to page height/width.
+        bboxes – list of [y_min, x_min, y_max, x_max] bounding boxes.
+                 Coordinates are integers in [0, 1000], normalised relative to
+                 page height (y) and width (x).
                  Use multiple boxes when an entity spans non-contiguous regions.
 
       Return ONLY a valid JSON array. No explanation, no markdown fences.
@@ -16,8 +17,8 @@ messages:
 
       Example output:
       [
-        {{"label": "NAME:PATIENT", "text": "Mario Rossi", "bboxes": [[0.12, 0.05, 0.14, 0.28]]}},
-        {{"label": "DATE", "text": "15/03/2024", "bboxes": [[0.22, 0.10, 0.24, 0.35]]}}
+        {{"label": "NAME:PATIENT", "text": "Mario Rossi", "bboxes": [[120, 50, 140, 280]]}},
+        {{"label": "DATE", "text": "15/03/2024", "bboxes": [[220, 100, 240, 350]]}}
       ]
 
   - role: user

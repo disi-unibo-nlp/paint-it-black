@@ -16,9 +16,15 @@ backend: vllm
 model: Qwen/Qwen3-VL-2B-Thinking
 base_url: http://localhost:8000/v1
 api_key: EMPTY
-max_new_tokens: 2048
-timeout: 120
+max_new_tokens: 16384
+timeout: 600
 max_retries: 3
+# Qwen3 thinking-mode recommended values (https://huggingface.co/Qwen/Qwen3-8B)
+# DO NOT set temperature=0 for thinking models — causes endless repetition.
+temperature: 0.6
+top_p: 0.95
+top_k: 20
+enable_thinking: true
 
 # Evaluation
 iou_thresholds: [0.25, 0.5, 0.75]

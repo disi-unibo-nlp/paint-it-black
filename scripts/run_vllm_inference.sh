@@ -24,7 +24,7 @@ CUDA_VISIBLE_DEVICES=0
 # VLLM serve defaults
 MODEL=""
 VLLM_PORT=8000
-GPU_MEM=0.9
+GPU_MEM=0.95
 MAX_MODEL_LEN=8192
 TENSOR_PARALLEL=1
 
@@ -111,8 +111,13 @@ kill \$VLLM_PID
 wait \$VLLM_PID 2>/dev/null || true
 "
 
-# Run container in detached mode
-CONTAINER_ID=$(docker run --rm -d \
+echo ""
+echo "=========================================="
+echo "Starting inference container (foreground)..."
+echo "=========================================="
+echo ""
+
+docker run --rm \
     --gpus "device=$CUDA_VISIBLE_DEVICES" \
     -v ./src:$CONT_WORKDIR/src \
     -v ./config:$CONT_WORKDIR/config \
@@ -124,18 +129,9 @@ CONTAINER_ID=$(docker run --rm -d \
     -e HF_HOME=$HF_HOME \
     -e HF_TOKEN=$HF_TOKEN \
     -v $HF_HOME:$CONT_WORKDIR/$HF_HOME \
-    $IMAGE_NAME bash -c "$INNER_CMD")
+    $IMAGE_NAME bash -c "$INNER_CMD"
 
 echo ""
 echo "=========================================="
-echo "Docker container started: $CONTAINER_ID"
-echo "=========================================="
-echo ""
-echo "To monitor logs:"
-echo "  docker logs --follow $CONTAINER_ID"
-echo ""
-echo "To stop the container:"
-echo "  docker stop $CONTAINER_ID"
-echo ""
-echo "Container will auto-remove when finished."
+echo "Inference container finished."
 echo "=========================================="
