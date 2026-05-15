@@ -234,11 +234,16 @@ def _run(args) -> None:
 
 
 def _log_metrics_summary(metrics: dict) -> None:
-    det = metrics["entity_detection_f1"]["micro"]
+    det = metrics["entity_detection_f1"]
     e2e_05 = metrics["end_to_end_f1"].get(0.5, {}).get("micro", {})
+    ex = metrics["span_exact_f1"]["micro"]
     logger.info("─── Benchmark Results ───────────────────────────────────")
-    logger.info("Entity Detection  P=%.3f  R=%.3f  F1=%.3f",
-                det["precision"], det["recall"], det["f1"])
+    logger.info("Entity Det  micro  P=%.3f  R=%.3f  F1=%.3f",
+                det["micro"]["precision"], det["micro"]["recall"], det["micro"]["f1"])
+    logger.info("Entity Det  macro  P=%.3f  R=%.3f  F1=%.3f",
+                det["macro_precision"], det["macro_recall"], det["macro_f1"])
+    logger.info("Exact Span  micro  P=%.3f  R=%.3f  F1=%.3f",
+                ex["precision"], ex["recall"], ex["f1"])
     if e2e_05:
         logger.info("End-to-End @0.5   P=%.3f  R=%.3f  F1=%.3f",
                     e2e_05["precision"], e2e_05["recall"], e2e_05["f1"])
@@ -280,13 +285,23 @@ def _log_wandb_metrics(metrics: dict) -> None:
     det = metrics["entity_detection_f1"]
     e2e = metrics["end_to_end_f1"]
 
+    ex = metrics["span_exact_f1"]
     flat = {
-        "detection/micro/f1": det["micro"]["f1"],
-        "detection/micro/precision": det["micro"]["precision"],
-        "detection/micro/recall": det["micro"]["recall"],
-        "detection/macro_f1": det["macro_f1"],
+        "detection/micro/f1":        det["micro"]["f1"],
+        "detection/micro/precision":  det["micro"]["precision"],
+        "detection/micro/recall":     det["micro"]["recall"],
+        "detection/macro_f1":        det["macro_f1"],
+        "detection/macro_precision":  det["macro_precision"],
+        "detection/macro_recall":     det["macro_recall"],
+        "detection/macro_f1_all":    det["macro_f1_all"],
+        "span_exact/micro/f1":       ex["micro"]["f1"],
+        "span_exact/micro/precision": ex["micro"]["precision"],
+        "span_exact/micro/recall":    ex["micro"]["recall"],
+        "span_exact/macro_f1":       ex["macro_f1"],
+        "span_exact/macro_precision": ex["macro_precision"],
+        "span_exact/macro_recall":    ex["macro_recall"],
         "e2e/f1_at_0.25": e2e.get(0.25, {}).get("micro", {}).get("f1", 0.0),
-        "e2e/f1_at_0.5": e2e.get(0.5, {}).get("micro", {}).get("f1", 0.0),
+        "e2e/f1_at_0.5":  e2e.get(0.5,  {}).get("micro", {}).get("f1", 0.0),
         "e2e/f1_at_0.75": e2e.get(0.75, {}).get("micro", {}).get("f1", 0.0),
         "char_f1": metrics["char_f1"],
         "exact_match_rate": metrics["exact_match_rate"],

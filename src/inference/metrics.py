@@ -111,13 +111,44 @@ def match_entities_by_text(pred_entities, gt_entities, text_threshold=0.5):
                          text_threshold)
 
 
-# ── PRF helper ────────────────────────────────────────────────────────────────
+def match_entities_by_exact_text(pred_entities, gt_entities):
+    """Match entities by label + exact text (case-insensitive strip)."""
+    return _greedy_match(
+        pred_entities, gt_entities,
+        lambda p, g: 1.0 if p["text"].strip().lower() == g["text"].strip().lower() else 0.0,
+        threshold=0.5,
+    )
+
+
+# ── PRF helpers ───────────────────────────────────────────────────────────────
 
 def _prf(tp: int, fp: int, fn: int) -> dict:
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
     return {"precision": precision, "recall": recall, "f1": f1, "tp": tp, "fp": fp, "fn": fn}
+
+
+def _macro_prf(per_label_counts: dict, all_labels: list) -> dict:
+    """Macro-averaged P/R/F1 over two scopes: supported (≥1 GT) and all labels."""
+    per_label_prf = {l: _prf(per_label_counts[l]["tp"],
+                              per_label_counts[l]["fp"],
+                              per_label_counts[l]["fn"]) for l in all_labels}
+    supported = [prf for l, prf in per_label_prf.items()
+                 if per_label_counts[l]["tp"] + per_label_counts[l]["fn"] > 0]
+    all_prf = list(per_label_prf.values())
+
+    def avg(lst, key):
+        return sum(x[key] for x in lst) / len(lst) if lst else 0.0
+
+    return {
+        "macro_f1":            avg(supported, "f1"),
+        "macro_precision":     avg(supported, "precision"),
+        "macro_recall":        avg(supported, "recall"),
+        "macro_f1_all":        avg(all_prf,   "f1"),
+        "macro_precision_all": avg(all_prf,   "precision"),
+        "macro_recall_all":    avg(all_prf,   "recall"),
+    }
 
 
 # ── Main metric computation ───────────────────────────────────────────────────
@@ -163,6 +194,9 @@ def compute_metrics(
     e2e_totals = {thr: {"tp": 0, "fp": 0, "fn": 0} for thr in iou_thresholds}
     e2e_per_label = {thr: defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0}) for thr in iou_thresholds}
 
+    ex_tp = ex_fp = ex_fn = 0
+    ex_per_label = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
+
     char_f1_scores, edit_dist_scores, iou_scores = [], [], []
     exact_matches = 0
     total_gt = 0
@@ -171,7 +205,7 @@ def compute_metrics(
     for preds, gts in zip(all_predictions, all_gt):
         total_gt += len(gts)
 
-        # ── Detection (text-based matching) ───────────────────────────────────
+        # ── Detection (partial text-based matching) ───────────────────────────
         matched_d, unmatched_pd, unmatched_gd = match_entities_by_text(preds, gts)
         det_tp += len(matched_d)
         det_fp += len(unmatched_pd)
@@ -182,6 +216,18 @@ def compute_metrics(
             det_per_label[p["label"]]["fp"] += 1
         for g in unmatched_gd:
             det_per_label[g["label"]]["fn"] += 1
+
+        # ── Exact span (exact text + label match) ─────────────────────────────
+        matched_ex, unmatched_pex, unmatched_gex = match_entities_by_exact_text(preds, gts)
+        ex_tp += len(matched_ex)
+        ex_fp += len(unmatched_pex)
+        ex_fn += len(unmatched_gex)
+        for _, g in matched_ex:
+            ex_per_label[g["label"]]["tp"] += 1
+        for p in unmatched_pex:
+            ex_per_label[p["label"]]["fp"] += 1
+        for g in unmatched_gex:
+            ex_per_label[g["label"]]["fn"] += 1
 
         # ── End-to-end (bbox-based matching at each threshold) ────────────────
         for thr in iou_thresholds:
@@ -217,32 +263,25 @@ def compute_metrics(
 
     # ── Aggregate detection metrics ───────────────────────────────────────────
     det_micro = _prf(det_tp, det_fp, det_fn)
-    det_per_label_prf = {}
-    macro_sum, macro_n = 0.0, 0
-    for label in all_labels:
-        cnt = det_per_label[label]
-        prf = _prf(cnt["tp"], cnt["fp"], cnt["fn"])
-        det_per_label_prf[label] = prf
-        if cnt["tp"] + cnt["fn"] > 0:
-            macro_sum += prf["f1"]
-            macro_n += 1
-    det_macro_f1 = macro_sum / macro_n if macro_n > 0 else 0.0
+    det_per_label_prf = {l: _prf(det_per_label[l]["tp"], det_per_label[l]["fp"], det_per_label[l]["fn"])
+                         for l in all_labels}
+    det_macro = _macro_prf(det_per_label, all_labels)
+
+    # ── Aggregate exact-span metrics ──────────────────────────────────────────
+    ex_micro = _prf(ex_tp, ex_fp, ex_fn)
+    ex_per_label_prf = {l: _prf(ex_per_label[l]["tp"], ex_per_label[l]["fp"], ex_per_label[l]["fn"])
+                        for l in all_labels}
+    ex_macro = _macro_prf(ex_per_label, all_labels)
 
     # ── Aggregate end-to-end metrics ──────────────────────────────────────────
     e2e_results = {}
     for thr in iou_thresholds:
         tot = e2e_totals[thr]
         micro = _prf(tot["tp"], tot["fp"], tot["fn"])
-        per_label_prf = {}
-        ms, mn = 0.0, 0
-        for label in all_labels:
-            cnt = e2e_per_label[thr][label]
-            prf = _prf(cnt["tp"], cnt["fp"], cnt["fn"])
-            per_label_prf[label] = prf
-            if cnt["tp"] + cnt["fn"] > 0:
-                ms += prf["f1"]
-                mn += 1
-        e2e_results[thr] = {"micro": micro, "macro_f1": ms / mn if mn > 0 else 0.0, "per_label": per_label_prf}
+        per_label_prf = {l: _prf(e2e_per_label[thr][l]["tp"], e2e_per_label[thr][l]["fp"], e2e_per_label[thr][l]["fn"])
+                         for l in all_labels}
+        e2e_macro = _macro_prf(e2e_per_label[thr], all_labels)
+        e2e_results[thr] = {"micro": micro, "per_label": per_label_prf, **e2e_macro}
 
     # ── Coarse F1 (collapse label to parent before ":") ──────────────────────
     coarse = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
@@ -265,8 +304,13 @@ def compute_metrics(
     return {
         "entity_detection_f1": {
             "micro": det_micro,
-            "macro_f1": det_macro_f1,
             "per_label": det_per_label_prf,
+            **det_macro,
+        },
+        "span_exact_f1": {
+            "micro": ex_micro,
+            "per_label": ex_per_label_prf,
+            **ex_macro,
         },
         "end_to_end_f1": e2e_results,
         "char_f1": float(np.mean(char_f1_scores)) if char_f1_scores else 0.0,

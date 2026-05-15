@@ -5,7 +5,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from inference.metrics import (
     enclosing_box, bbox_iou, text_char_f1, normalized_edit_distance,
-    match_entities_by_bbox, match_entities_by_text, compute_metrics,
+    match_entities_by_bbox, match_entities_by_text, match_entities_by_exact_text,
+    compute_metrics,
 )
 
 
@@ -172,9 +173,10 @@ def test_compute_metrics_all_hallucination():
 
 def test_compute_metrics_output_keys():
     m = compute_metrics([[]], [[]], iou_thresholds=[0.5])
-    for key in ["entity_detection_f1", "end_to_end_f1", "char_f1", "edit_distance",
-                "exact_match_rate", "mean_iou", "hallucination_rate", "miss_rate",
-                "coarse_f1", "per_label_breakdown", "format_compliance", "label_confusion"]:
+    for key in ["entity_detection_f1", "span_exact_f1", "end_to_end_f1", "char_f1",
+                "edit_distance", "exact_match_rate", "mean_iou", "hallucination_rate",
+                "miss_rate", "coarse_f1", "per_label_breakdown", "format_compliance",
+                "label_confusion"]:
         assert key in m, f"Missing key: {key}"
 
 def test_compute_metrics_format_compliance():
@@ -196,3 +198,78 @@ def test_compute_metrics_coarse_grouping():
     m = compute_metrics(preds, gts)
     # Both collapse to "NAME" under coarse_f1; but label mismatch means no TP
     assert "NAME" in m["coarse_f1"]
+
+
+# ── macro P/R ─────────────────────────────────────────────────────────────────
+
+def test_entity_detection_macro_prf():
+    preds = [_sample_preds()]
+    gts   = [_sample_gt()]
+    m = compute_metrics(preds, gts, iou_thresholds=[0.5])
+    det = m["entity_detection_f1"]
+    assert det["macro_precision"] == pytest.approx(1.0)
+    assert det["macro_recall"]    == pytest.approx(1.0)
+    assert det["macro_f1"]        == pytest.approx(1.0)
+
+def test_macro_all_vs_supported():
+    # Only NAME:PATIENT appears in GT; pass an extra label that has no instances.
+    preds = [_sample_preds()]
+    gts   = [_sample_gt()]
+    label_set = ["NAME:PATIENT", "DATE"]  # DATE has no GT → drags macro_all down
+    m = compute_metrics(preds, gts, iou_thresholds=[0.5], label_set=label_set)
+    det = m["entity_detection_f1"]
+    # supported macro uses only NAME:PATIENT (F1=1.0)
+    assert det["macro_f1"]     == pytest.approx(1.0)
+    # all-label macro averages over both, DATE has F1=0 → 0.5
+    assert det["macro_f1_all"] == pytest.approx(0.5)
+    assert det["macro_f1_all"] <= det["macro_f1"]
+
+def test_e2e_macro_prf_present():
+    preds = [_sample_preds()]
+    gts   = [_sample_gt()]
+    m = compute_metrics(preds, gts, iou_thresholds=[0.5])
+    thr_result = m["end_to_end_f1"][0.5]
+    for key in ("macro_f1", "macro_precision", "macro_recall", "macro_f1_all"):
+        assert key in thr_result, f"Missing key in end_to_end_f1[0.5]: {key}"
+
+
+# ── match_entities_by_exact_text & span_exact_f1 ─────────────────────────────
+
+def test_match_exact_text_perfect():
+    pred = [_ent("NAME:PATIENT", "Mario Rossi", 0.0, 0.0, 0.1, 0.1)]
+    gt   = [_ent("NAME:PATIENT", "Mario Rossi", 0.5, 0.5, 0.9, 0.9)]
+    matched, fp, fn = match_entities_by_exact_text(pred, gt)
+    assert len(matched) == 1 and len(fp) == 0 and len(fn) == 0
+
+def test_match_exact_text_case_insensitive():
+    pred = [_ent("NAME:PATIENT", "mario rossi", 0.0, 0.0, 0.1, 0.1)]
+    gt   = [_ent("NAME:PATIENT", "Mario Rossi", 0.0, 0.0, 0.1, 0.1)]
+    matched, fp, fn = match_entities_by_exact_text(pred, gt)
+    assert len(matched) == 1 and len(fp) == 0 and len(fn) == 0
+
+def test_match_exact_text_partial_no_match():
+    pred = [_ent("NAME:PATIENT", "Mario", 0.0, 0.0, 0.1, 0.1)]
+    gt   = [_ent("NAME:PATIENT", "Mario Rossi", 0.0, 0.0, 0.1, 0.1)]
+    matched, fp, fn = match_entities_by_exact_text(pred, gt)
+    assert len(matched) == 0 and len(fp) == 1 and len(fn) == 1
+
+def test_span_exact_f1_perfect():
+    preds = [_sample_preds()]
+    gts   = [_sample_gt()]
+    m = compute_metrics(preds, gts, iou_thresholds=[0.5])
+    assert m["span_exact_f1"]["micro"]["f1"] == pytest.approx(1.0)
+
+def test_span_exact_f1_partial_text_no_match():
+    # Partial text match passes detection but fails exact span
+    pred = [_ent("NAME:PATIENT", "Mario", 0.0, 0.0, 0.1, 0.1)]
+    gt   = [_ent("NAME:PATIENT", "Mario Rossi", 0.0, 0.0, 0.1, 0.1)]
+    m = compute_metrics([pred], [gt], iou_thresholds=[0.5])
+    assert m["span_exact_f1"]["micro"]["f1"] == pytest.approx(0.0)
+    assert m["entity_detection_f1"]["micro"]["f1"] > 0.0
+
+def test_span_exact_f1_output_structure():
+    m = compute_metrics([[]], [[]], iou_thresholds=[0.5])
+    ex = m["span_exact_f1"]
+    for key in ("micro", "per_label", "macro_f1", "macro_precision", "macro_recall",
+                "macro_f1_all", "macro_precision_all", "macro_recall_all"):
+        assert key in ex, f"Missing key in span_exact_f1: {key}"
