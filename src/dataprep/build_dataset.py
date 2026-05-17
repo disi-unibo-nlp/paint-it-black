@@ -23,7 +23,7 @@ files is a dict keyed by PDF filename. Each file entry has:
 
 Each annotation object has:
 - id: unique string identifier
-- label: string in CATEGORY:SUBCATEGORY format (e.g. "NAME:PATIENT", "DATE", "ID:DOCUMENT_ID")
+- label: string in CATEGORY:SUBCATEGORY format (e.g. "NAME:PATIENT", "DATETIME", "ID:DOCUMENT_ID")
 - text: the annotated text content as it appears in the document
 - page_width, page_height: page dimensions in points (PDF units)
 - created: ISO 8601 timestamp

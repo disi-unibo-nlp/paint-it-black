@@ -43,14 +43,14 @@ def _sample_meta(idx=0, parse_success=True):
 def _gt():
     return [
         {"label": "NAME:PATIENT", "text": "John Doe",  "bboxes": [[0.1, 0.05, 0.2, 0.4]]},
-        {"label": "DATE",         "text": "2024-01-01", "bboxes": [[0.3, 0.1, 0.35, 0.5]]},
+        {"label": "DATETIME",         "text": "2024-01-01", "bboxes": [[0.3, 0.1, 0.35, 0.5]]},
     ]
 
 
 def _preds():
     return [
         {"label": "NAME:PATIENT", "text": "John Doe",  "bboxes": [[0.11, 0.05, 0.21, 0.41]]},
-        {"label": "DATE",         "text": "2024-01-02", "bboxes": [[0.55, 0.6, 0.65, 0.9]]},
+        {"label": "DATETIME",         "text": "2024-01-02", "bboxes": [[0.55, 0.6, 0.65, 0.9]]},
     ]
 
 
@@ -162,7 +162,7 @@ class TestMainCLI:
                     "doc_type": "lab",
                     "source_pdf": f"doc{i}.pdf",
                     "predictions": [
-                        {"label": "DATE", "text": "2024", "bboxes": [[0.1, 0.1, 0.2, 0.3]]}
+                        {"label": "DATETIME", "text": "2024", "bboxes": [[0.1, 0.1, 0.2, 0.3]]}
                     ],
                     "raw_output": "...",
                     "parse_success": True,

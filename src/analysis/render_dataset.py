@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 _PARENT_COLORS = {
     "NAME":          "#e74c3c",
     "DATE_OF_BIRTH": "#e67e22",
-    "DATE":          "#ff9800",
+    "DATETIME":      "#ff9800",
     "AGE":           "#f1c40f",
     "ID":            "#9b59b6",
     "CONTACT":       "#e91e63",

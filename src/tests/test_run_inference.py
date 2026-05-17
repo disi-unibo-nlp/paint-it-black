@@ -55,7 +55,7 @@ def _make_test_dataset():
             "doc_type": "legal",
             "source_pdf": "doc2.pdf",
             "annotations": [
-                {"id": "a2", "label": "DATE", "text": "2024-01-01",
+                {"id": "a2", "label": "DATETIME", "text": "2024-01-01",
                  "bboxes": [[0.3, 0.3, 0.4, 0.5]]},
             ],
         },
@@ -88,7 +88,7 @@ class TestDatasetLoading:
             # Mock return values
             mock_load_disk.return_value = _make_test_dataset()
             mock_output_dir.return_value = Path("/tmp/test_output")
-            mock_labels.return_value = ["NAME:PATIENT", "DATE"]
+            mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
                 "entity_detection_f1": {"micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9}, "macro_f1": 0.9, "per_label": {}},
                 "end_to_end_f1": {0.5: {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8}}},
@@ -155,7 +155,7 @@ class TestDatasetLoading:
             # Mock return values
             mock_load_hub.return_value = _make_test_dataset()
             mock_output_dir.return_value = Path("/tmp/test_output")
-            mock_labels.return_value = ["NAME:PATIENT", "DATE"]
+            mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
                 "entity_detection_f1": {"micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9}, "macro_f1": 0.9, "per_label": {}},
                 "end_to_end_f1": {0.5: {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8}}},
@@ -221,7 +221,7 @@ class TestDatasetLoading:
 
             mock_load_hub.return_value = _make_test_dataset()
             mock_output_dir.return_value = Path("/tmp/test_output")
-            mock_labels.return_value = ["NAME:PATIENT", "DATE"]
+            mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
                 "entity_detection_f1": {"micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9}, "macro_f1": 0.9, "per_label": {}},
                 "end_to_end_f1": {0.5: {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8}}},
@@ -283,7 +283,7 @@ class TestDatasetLoading:
 
             mock_load_hub.return_value = _make_test_dataset()
             mock_output_dir.return_value = Path("/tmp/test_output")
-            mock_labels.return_value = ["NAME:PATIENT", "DATE"]
+            mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
                 "entity_detection_f1": {"micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9}, "macro_f1": 0.9, "per_label": {}},
                 "end_to_end_f1": {0.5: {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8}}},

@@ -53,7 +53,7 @@ def _make_test_dataset():
             "annotations": [
                 {"id": "a1", "label": "NAME:PATIENT", "text": "John Doe",
                  "bboxes": [[0.1, 0.1, 0.2, 0.3]]},
-                {"id": "a2", "label": "DATE", "text": "2024-01-01",
+                {"id": "a2", "label": "DATETIME", "text": "2024-01-01",
                  "bboxes": [[0.3, 0.3, 0.4, 0.5]]},
             ],
         },
@@ -86,7 +86,7 @@ def _make_test_dataset():
             "doc_type": "legal",
             "source_pdf": "doc3.pdf",
             "annotations": [
-                {"id": "a4", "label": "DATE", "text": "2024-02-01",
+                {"id": "a4", "label": "DATETIME", "text": "2024-02-01",
                  "bboxes": [[0.1, 0.1, 0.2, 0.3]]},
                 {"id": "a5", "label": "ADDRESS:STREET", "text": "123 Main St",
                  "bboxes": [[0.3, 0.3, 0.4, 0.5]]},
@@ -145,7 +145,7 @@ class TestLogDatasetStats:
 
         # Mock load_labels to return only the labels we use
         with patch("analysis.analyze_dataset.load_labels") as mock_load_labels:
-            mock_load_labels.return_value = ["NAME:PATIENT", "DATE", "ADDRESS:STREET"]
+            mock_load_labels.return_value = ["NAME:PATIENT", "DATETIME", "ADDRESS:STREET"]
 
             with caplog.at_level(logging.INFO):
                 log_dataset_stats(dataset, logger)
@@ -154,7 +154,7 @@ class TestLogDatasetStats:
         # NAME:PATIENT appears 2 times
         assert "NAME:PATIENT" in logs
         # DATE appears 2 times
-        assert "DATE" in logs
+        assert "DATETIME" in logs
         # ADDRESS:STREET appears 1 time
         assert "ADDRESS:STREET" in logs
 
@@ -164,7 +164,7 @@ class TestLogDatasetStats:
         logger = _get_test_logger()
 
         with patch("analysis.analyze_dataset.load_labels") as mock_load_labels:
-            mock_load_labels.return_value = ["NAME:PATIENT", "DATE", "ADDRESS:STREET"]
+            mock_load_labels.return_value = ["NAME:PATIENT", "DATETIME", "ADDRESS:STREET"]
 
             with caplog.at_level(logging.INFO):
                 log_dataset_stats(dataset, logger)
@@ -180,7 +180,7 @@ class TestLogDatasetStats:
         logger = _get_test_logger()
 
         with patch("analysis.analyze_dataset.load_labels") as mock_load_labels:
-            mock_load_labels.return_value = ["NAME:PATIENT", "DATE", "ADDRESS:STREET"]
+            mock_load_labels.return_value = ["NAME:PATIENT", "DATETIME", "ADDRESS:STREET"]
 
             with caplog.at_level(logging.INFO):
                 log_dataset_stats(dataset, logger)
@@ -199,7 +199,7 @@ class TestLogDatasetStats:
         logger = _get_test_logger()
 
         with patch("analysis.analyze_dataset.load_labels") as mock_load_labels:
-            mock_load_labels.return_value = ["NAME:PATIENT", "DATE", "ADDRESS:STREET"]
+            mock_load_labels.return_value = ["NAME:PATIENT", "DATETIME", "ADDRESS:STREET"]
 
             with caplog.at_level(logging.INFO):
                 log_dataset_stats(dataset, logger)
@@ -221,7 +221,7 @@ class TestLogDatasetStats:
         logger = _get_test_logger()
 
         with patch("analysis.analyze_dataset.load_labels") as mock_load_labels:
-            mock_load_labels.return_value = ["NAME:PATIENT", "DATE"]
+            mock_load_labels.return_value = ["NAME:PATIENT", "DATETIME"]
 
             with caplog.at_level(logging.INFO):
                 log_dataset_stats(dataset, logger)
@@ -248,7 +248,7 @@ class TestLogDatasetStats:
         logger = _get_test_logger()
 
         with patch("analysis.analyze_dataset.load_labels") as mock_load_labels:
-            mock_load_labels.return_value = ["NAME:PATIENT", "DATE"]
+            mock_load_labels.return_value = ["NAME:PATIENT", "DATETIME"]
 
             with caplog.at_level(logging.INFO):
                 log_dataset_stats(dataset, logger)

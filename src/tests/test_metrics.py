@@ -104,7 +104,7 @@ def test_match_bbox_no_overlap():
     assert len(matched) == 0 and len(fp) == 1 and len(fn) == 1
 
 def test_match_bbox_label_mismatch():
-    pred = [_ent("DATE", "01/01/2000", 0.1, 0.1, 0.2, 0.3)]
+    pred = [_ent("DATETIME", "01/01/2000", 0.1, 0.1, 0.2, 0.3)]
     gt   = [_ent("NAME:PATIENT", "Rossi", 0.1, 0.1, 0.2, 0.3)]
     matched, fp, fn = match_entities_by_bbox(pred, gt)
     assert len(matched) == 0 and len(fp) == 1 and len(fn) == 1
@@ -194,7 +194,7 @@ def test_compute_metrics_multiple_samples():
 
 def test_compute_metrics_coarse_grouping():
     preds = [[_ent("NAME:PATIENT", "Rossi", 0.1, 0.1, 0.2, 0.3)]]
-    gts   = [[_ent("NAME:DOCTOR", "Bianchi", 0.5, 0.5, 0.6, 0.7)]]
+    gts   = [[_ent("NAME:STAFF", "Bianchi", 0.5, 0.5, 0.6, 0.7)]]
     m = compute_metrics(preds, gts)
     # Both collapse to "NAME" under coarse_f1; but label mismatch means no TP
     assert "NAME" in m["coarse_f1"]
@@ -215,7 +215,7 @@ def test_macro_all_vs_supported():
     # Only NAME:PATIENT appears in GT; pass an extra label that has no instances.
     preds = [_sample_preds()]
     gts   = [_sample_gt()]
-    label_set = ["NAME:PATIENT", "DATE"]  # DATE has no GT → drags macro_all down
+    label_set = ["NAME:PATIENT", "DATETIME"]  # DATE has no GT → drags macro_all down
     m = compute_metrics(preds, gts, iou_thresholds=[0.5], label_set=label_set)
     det = m["entity_detection_f1"]
     # supported macro uses only NAME:PATIENT (F1=1.0)
