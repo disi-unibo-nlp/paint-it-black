@@ -104,6 +104,13 @@ _INK_TYPES = ["pencil", "pen", "marker", "highlighter"]
 _FAXIFY_MUTEX_P_ATTRS = ["scanner_noise_p", "shadow_cast_p", "stains_p"]
 
 
+def _maybe_downscale(pil_img: Image.Image, scale: float) -> Image.Image:
+    if scale >= 1.0:
+        return pil_img
+    w, h = pil_img.size
+    return pil_img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
+
 def _resolve_markup_ink(args):
     """Return a concrete ink type string, sampling by weight when ink='random'."""
     if args.annotations_markup_ink != "random":
@@ -1226,7 +1233,7 @@ def augment_dataset_split(
             # Keep existing augmented row unchanged
             existing_row = existing_dataset[i]
             rows.append({
-                "image":       existing_row["image"],
+                "image":       _maybe_downscale(existing_row["image"], args.output_scale),
                 "page":        existing_row["page"],
                 "annotations": existing_row["annotations"],
             })
@@ -1243,7 +1250,7 @@ def augment_dataset_split(
             _post_phase_no_mutex if _faxify_mutex_active else None,
         )
 
-        pil_aug = Image.fromarray(cv2.cvtColor(augmented, cv2.COLOR_BGR2RGB))
+        pil_aug = _maybe_downscale(Image.fromarray(cv2.cvtColor(augmented, cv2.COLOR_BGR2RGB)), args.output_scale)
         rows.append({
             **{k: row[k] for k in row if k != "image"},
             "image": pil_aug,
@@ -1519,6 +1526,8 @@ def main():
                         help="Split name for the output dataset (required in dataset mode)")
     parser.add_argument("--resample_ids", type=int, nargs="+", default=None,
                         help="Row indices (0-based) in the output split to re-augment and replace")
+    parser.add_argument("--output_scale", type=float, default=1.0,
+                        help="Downscale factor applied to all images before saving (e.g. 0.667 = 200/300 DPI). Default 1.0 = no resize.")
     parser.add_argument("--push_to_hub", action="store_true",
                         help="Push the output dataset to the HF Hub (dataset mode only)")
 
