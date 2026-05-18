@@ -18,6 +18,7 @@ base_url: http://localhost:8000/v1
 api_key: EMPTY
 max_new_tokens: 16384
 timeout: 600
+batch_size: 8
 max_retries: 3
 # Qwen3 thinking-mode recommended values (https://huggingface.co/Qwen/Qwen3-8B)
 # DO NOT set temperature=0 for thinking models — causes endless repetition.

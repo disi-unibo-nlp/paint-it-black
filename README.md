@@ -363,6 +363,7 @@ General:
   --log_level STR         Logging verbosity (default: INFO)
   --seed INT              Random seed (default: 42)
   --max_samples INT       Cap the number of samples processed (useful for quick checks)
+  --batch_size INT        Concurrent requests sent to the server per batch (default: 8)
 
 Dataset:
   --input_dataset PATH    HF repo ID or local path to the HF dataset root [required]

@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from datasets import load_from_disk, load_dataset
@@ -112,6 +113,8 @@ def _build_parser() -> ConfigArgumentParser:
     # Dataset cap
     parser.add_argument("--max_samples", type=int, default=None,
                         help="Cap the number of samples processed (useful for quick checks)")
+    parser.add_argument("--batch_size", type=int, default=8,
+                        help="Number of concurrent inference requests sent to the server per batch")
 
     # Evaluation
     parser.add_argument("--iou_thresholds", type=float, nargs="+", default=[0.25, 0.5, 0.75])
@@ -120,6 +123,29 @@ def _build_parser() -> ConfigArgumentParser:
     parser.add_argument("--wandb", action="store_true", default=False)
 
     return parser
+
+
+def _process_sample(idx: int, row: dict, handler, client) -> dict:
+    try:
+        messages = handler.format(page_image=row["image"])
+        raw = client.complete(messages)
+        entities, success = _parse_json_output(raw)
+        if success:
+            entities = _rescale_entities(entities)
+    except Exception as exc:
+        logger.error("Error on sample %d: %r", idx, exc)
+        raw, entities, success = "", [], False
+    return {
+        "idx":          idx,
+        "page":         row.get("page"),
+        "total_pages":  row.get("total_pages"),
+        "doc_type":     row.get("doc_type"),
+        "source_pdf":   row.get("source_pdf"),
+        "annotations":  row.get("annotations", []),
+        "predictions":  entities,
+        "raw_output":   raw,
+        "parse_success": success,
+    }
 
 
 def _run(args) -> None:
@@ -176,38 +202,32 @@ def _run(args) -> None:
         enable_thinking=args.enable_thinking,
     )
 
-    per_sample_results = []
-    all_predictions = []
-    all_gt = []
-    parse_successes = 0
+    rows = list(ds)
+    n = len(rows)
+    per_sample_results = [None] * n
+    all_predictions    = [None] * n
+    all_gt             = [None] * n
+    parse_successes    = 0
 
-    for idx, row in enumerate(ds):
-        logger.info("Processing sample %d/%d (page %s)", idx + 1, len(ds), row.get("page", "?"))
-        try:
-            messages = handler.format(page_image=row["image"])
-            raw = client.complete(messages)
-            entities, success = _parse_json_output(raw)
-            if success:
-                entities = _rescale_entities(entities)
-        except Exception as exc:
-            logger.error("Error on sample %d: %r", idx, exc)
-            raw, entities, success = "", [], False
-
-        if success:
-            parse_successes += 1
-
-        all_predictions.append(entities)
-        all_gt.append(row.get("annotations", []))
-        per_sample_results.append({
-            "idx":          idx,
-            "page":         row.get("page"),
-            "total_pages":  row.get("total_pages"),
-            "doc_type":     row.get("doc_type"),
-            "source_pdf":   row.get("source_pdf"),
-            "predictions":  entities,
-            "raw_output":   raw,
-            "parse_success": success,
-        })
+    with ThreadPoolExecutor(max_workers=args.batch_size) as executor:
+        for batch_start in range(0, n, args.batch_size):
+            batch = rows[batch_start : batch_start + args.batch_size]
+            logger.info(
+                "Processing samples %d–%d / %d",
+                batch_start + 1, min(batch_start + len(batch), n), n,
+            )
+            futures = {
+                executor.submit(_process_sample, batch_start + i, row, handler, client): batch_start + i
+                for i, row in enumerate(batch)
+            }
+            for future in as_completed(futures):
+                result = future.result()
+                idx = result["idx"]
+                per_sample_results[idx] = {k: v for k, v in result.items() if k != "annotations"}
+                all_predictions[idx]    = result["predictions"]
+                all_gt[idx]             = result["annotations"]
+                if result["parse_success"]:
+                    parse_successes += 1
 
     format_compliance = parse_successes / len(ds) if len(ds) > 0 else 0.0
     logger.info("Format compliance: %.1f%%", format_compliance * 100)

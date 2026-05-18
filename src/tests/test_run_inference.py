@@ -90,14 +90,34 @@ class TestDatasetLoading:
             mock_output_dir.return_value = Path("/tmp/test_output")
             mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
-                "entity_detection_f1": {"micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9}, "macro_f1": 0.9, "per_label": {}},
-                "end_to_end_f1": {0.5: {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8}}},
-                "char_f1": 0.85,
-                "exact_match_rate": 0.7,
-                "mean_iou": 0.75,
-                "hallucination_rate": {"overall": 0.1},
-                "miss_rate": {"overall": 0.15},
-                "format_compliance": 0.95,
+                "summary": {
+                    "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
+                    "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
+                    "char_f1": 0.85, "exact_match_rate": 0.7,
+                    "hallucination_rate": 0.1, "miss_rate": 0.15, "format_compliance": 0.95,
+                },
+                "text_extraction": {
+                    "detection": {
+                        "micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9},
+                        "per_label": {}, "macro_f1": 0.9, "macro_precision": 0.9,
+                        "macro_recall": 0.9, "macro_f1_all": 0.9,
+                    },
+                    "span_exact": {
+                        "micro": {"precision": 0.85, "recall": 0.85, "f1": 0.85},
+                        "per_label": {}, "macro_f1": 0.85, "macro_precision": 0.85, "macro_recall": 0.85,
+                    },
+                    "char_f1": 0.85, "edit_distance": 0.1, "exact_match_rate": 0.7,
+                },
+                "bbox_localization": {
+                    "avg_e2e_f1": 0.8, "mean_iou": 0.75, "unconditional_mean_iou": 0.6,
+                    "end_to_end": {
+                        "@0.5": {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8},
+                                 "per_label": {}, "macro_f1": 0.8, "macro_precision": 0.8, "macro_recall": 0.8},
+                    },
+                },
+                "hallucination_rate": {"overall": 0.1, "per_label": {}},
+                "miss_rate": {"overall": 0.15, "per_label": {}},
+                "coarse_f1": {}, "label_confusion": {}, "format_compliance": 0.95,
             }
 
             # Mock arguments - local loading (from_hub=False)
@@ -124,6 +144,7 @@ class TestDatasetLoading:
                 log_level="INFO",
                 seed=42,
                 wandb=False,
+                batch_size=8,
             )
 
             _run(args)
@@ -157,14 +178,34 @@ class TestDatasetLoading:
             mock_output_dir.return_value = Path("/tmp/test_output")
             mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
-                "entity_detection_f1": {"micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9}, "macro_f1": 0.9, "per_label": {}},
-                "end_to_end_f1": {0.5: {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8}}},
-                "char_f1": 0.85,
-                "exact_match_rate": 0.7,
-                "mean_iou": 0.75,
-                "hallucination_rate": {"overall": 0.1},
-                "miss_rate": {"overall": 0.15},
-                "format_compliance": 0.95,
+                "summary": {
+                    "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
+                    "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
+                    "char_f1": 0.85, "exact_match_rate": 0.7,
+                    "hallucination_rate": 0.1, "miss_rate": 0.15, "format_compliance": 0.95,
+                },
+                "text_extraction": {
+                    "detection": {
+                        "micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9},
+                        "per_label": {}, "macro_f1": 0.9, "macro_precision": 0.9,
+                        "macro_recall": 0.9, "macro_f1_all": 0.9,
+                    },
+                    "span_exact": {
+                        "micro": {"precision": 0.85, "recall": 0.85, "f1": 0.85},
+                        "per_label": {}, "macro_f1": 0.85, "macro_precision": 0.85, "macro_recall": 0.85,
+                    },
+                    "char_f1": 0.85, "edit_distance": 0.1, "exact_match_rate": 0.7,
+                },
+                "bbox_localization": {
+                    "avg_e2e_f1": 0.8, "mean_iou": 0.75, "unconditional_mean_iou": 0.6,
+                    "end_to_end": {
+                        "@0.5": {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8},
+                                 "per_label": {}, "macro_f1": 0.8, "macro_precision": 0.8, "macro_recall": 0.8},
+                    },
+                },
+                "hallucination_rate": {"overall": 0.1, "per_label": {}},
+                "miss_rate": {"overall": 0.15, "per_label": {}},
+                "coarse_f1": {}, "label_confusion": {}, "format_compliance": 0.95,
             }
 
             # Mock arguments - Hub loading (from_hub=True)
@@ -191,6 +232,7 @@ class TestDatasetLoading:
                 log_level="INFO",
                 seed=42,
                 wandb=False,
+                batch_size=8,
             )
 
             _run(args)
@@ -223,14 +265,34 @@ class TestDatasetLoading:
             mock_output_dir.return_value = Path("/tmp/test_output")
             mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
-                "entity_detection_f1": {"micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9}, "macro_f1": 0.9, "per_label": {}},
-                "end_to_end_f1": {0.5: {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8}}},
-                "char_f1": 0.85,
-                "exact_match_rate": 0.7,
-                "mean_iou": 0.75,
-                "hallucination_rate": {"overall": 0.1},
-                "miss_rate": {"overall": 0.15},
-                "format_compliance": 0.95,
+                "summary": {
+                    "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
+                    "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
+                    "char_f1": 0.85, "exact_match_rate": 0.7,
+                    "hallucination_rate": 0.1, "miss_rate": 0.15, "format_compliance": 0.95,
+                },
+                "text_extraction": {
+                    "detection": {
+                        "micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9},
+                        "per_label": {}, "macro_f1": 0.9, "macro_precision": 0.9,
+                        "macro_recall": 0.9, "macro_f1_all": 0.9,
+                    },
+                    "span_exact": {
+                        "micro": {"precision": 0.85, "recall": 0.85, "f1": 0.85},
+                        "per_label": {}, "macro_f1": 0.85, "macro_precision": 0.85, "macro_recall": 0.85,
+                    },
+                    "char_f1": 0.85, "edit_distance": 0.1, "exact_match_rate": 0.7,
+                },
+                "bbox_localization": {
+                    "avg_e2e_f1": 0.8, "mean_iou": 0.75, "unconditional_mean_iou": 0.6,
+                    "end_to_end": {
+                        "@0.5": {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8},
+                                 "per_label": {}, "macro_f1": 0.8, "macro_precision": 0.8, "macro_recall": 0.8},
+                    },
+                },
+                "hallucination_rate": {"overall": 0.1, "per_label": {}},
+                "miss_rate": {"overall": 0.15, "per_label": {}},
+                "coarse_f1": {}, "label_confusion": {}, "format_compliance": 0.95,
             }
 
             args = argparse.Namespace(
@@ -256,6 +318,7 @@ class TestDatasetLoading:
                 log_level="INFO",
                 seed=42,
                 wandb=False,
+                batch_size=8,
             )
 
             _run(args)
@@ -285,14 +348,34 @@ class TestDatasetLoading:
             mock_output_dir.return_value = Path("/tmp/test_output")
             mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
-                "entity_detection_f1": {"micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9}, "macro_f1": 0.9, "per_label": {}},
-                "end_to_end_f1": {0.5: {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8}}},
-                "char_f1": 0.85,
-                "exact_match_rate": 0.7,
-                "mean_iou": 0.75,
-                "hallucination_rate": {"overall": 0.1},
-                "miss_rate": {"overall": 0.15},
-                "format_compliance": 0.95,
+                "summary": {
+                    "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
+                    "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
+                    "char_f1": 0.85, "exact_match_rate": 0.7,
+                    "hallucination_rate": 0.1, "miss_rate": 0.15, "format_compliance": 0.95,
+                },
+                "text_extraction": {
+                    "detection": {
+                        "micro": {"precision": 0.9, "recall": 0.9, "f1": 0.9},
+                        "per_label": {}, "macro_f1": 0.9, "macro_precision": 0.9,
+                        "macro_recall": 0.9, "macro_f1_all": 0.9,
+                    },
+                    "span_exact": {
+                        "micro": {"precision": 0.85, "recall": 0.85, "f1": 0.85},
+                        "per_label": {}, "macro_f1": 0.85, "macro_precision": 0.85, "macro_recall": 0.85,
+                    },
+                    "char_f1": 0.85, "edit_distance": 0.1, "exact_match_rate": 0.7,
+                },
+                "bbox_localization": {
+                    "avg_e2e_f1": 0.8, "mean_iou": 0.75, "unconditional_mean_iou": 0.6,
+                    "end_to_end": {
+                        "@0.5": {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8},
+                                 "per_label": {}, "macro_f1": 0.8, "macro_precision": 0.8, "macro_recall": 0.8},
+                    },
+                },
+                "hallucination_rate": {"overall": 0.1, "per_label": {}},
+                "miss_rate": {"overall": 0.15, "per_label": {}},
+                "coarse_f1": {}, "label_confusion": {}, "format_compliance": 0.95,
             }
 
             args = argparse.Namespace(
@@ -318,6 +401,7 @@ class TestDatasetLoading:
                 log_level="INFO",
                 seed=42,
                 wandb=False,
+                batch_size=8,
             )
 
             _run(args)
