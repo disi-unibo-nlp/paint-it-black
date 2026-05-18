@@ -1230,12 +1230,12 @@ def augment_dataset_split(
 
     for i in range(n):
         if resample_set is not None and i not in resample_set:
-            # Keep existing augmented row unchanged
+            # Keep existing augmented row unchanged — do NOT apply output_scale here,
+            # the existing image is already at the correct scale from its original augmentation.
             existing_row = existing_dataset[i]
             rows.append({
-                "image":       _maybe_downscale(existing_row["image"], args.output_scale),
-                "page":        existing_row["page"],
-                "annotations": existing_row["annotations"],
+                **{k: existing_row[k] for k in existing_row if k != "image"},
+                "image": existing_row["image"],
             })
             continue
 

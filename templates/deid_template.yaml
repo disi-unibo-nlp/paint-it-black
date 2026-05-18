@@ -32,3 +32,26 @@ output_fields:
   - name: entities
     pattern: null
     required: true
+
+structured_output:
+  type: array
+  items:
+    type: object
+    required: [label, text, bboxes]
+    additionalProperties: false
+    properties:
+      label:
+        type: string
+        enum: "{labels}"
+      text:
+        type: string
+      bboxes:
+        type: array
+        items:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            type: integer
+            minimum: 0
+            maximum: 1000

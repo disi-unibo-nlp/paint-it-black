@@ -17,16 +17,16 @@ class LLMClient:
         model,
         max_new_tokens=2048,
         timeout=120,
-        max_retries=3,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         top_k: Optional[int] = None,
         min_p: Optional[float] = None,
         enable_thinking: bool = False,
+        json_schema: Optional[dict] = None,
     ):
         self.model = model
         self.max_new_tokens = max_new_tokens
-        self.max_retries = max_retries
+        self.max_retries = 3
         self._client = openai.OpenAI(base_url=base_url, api_key=api_key, timeout=timeout, max_retries=0)
 
         # Standard OpenAI sampling params
@@ -36,6 +36,7 @@ class LLMClient:
         self._top_k = top_k
         self._min_p = min_p
         self._enable_thinking = enable_thinking
+        self._json_schema = json_schema
 
     def complete(self, messages: list[dict]) -> str:
         kwargs: dict = dict(
@@ -47,6 +48,12 @@ class LLMClient:
             kwargs["temperature"] = self._temperature
         if self._top_p is not None:
             kwargs["top_p"] = self._top_p
+
+        if self._json_schema is not None:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "entities", "schema": self._json_schema},
+            }
 
         extra: dict = {}
         if self._top_k is not None:

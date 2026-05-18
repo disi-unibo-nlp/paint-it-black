@@ -28,14 +28,19 @@ multimodal-deid/
 │   ├── Dockerfile              # Based on vllm/vllm-openai; adds project deps
 │   └── requirements.txt
 ├── docs/
-│   └── metrics_design.md       # Full metrics design rationale and structure reference
+│   ├── augmentation.md         # Augmentation pipeline — all degradation types, presets, sampling
+│   ├── inference.md            # Inference pipeline — task formulation, prompt, batching, retries
+│   ├── metrics.md              # Complete metrics reference with mathematical definitions
+│   └── metrics_design.md       # Metrics design rationale and redesign history
 ├── experiments/
 │   ├── augment_split.sh        # Build medium + hard augmented splits from base
 │   ├── augment_tuning.sh       # Run all augmentation example configs for visual tuning
 │   ├── load_annotations.sh     # Build base split from annotations and push to HF Hub
+│   ├── push_to_hub.sh          # Resize all splits to target DPI and push to HF Hub
 │   ├── quick_eval.sh           # Run inference on a small subset + render predictions
 │   ├── render_results.sh       # Render bounding-box predictions from a results.json
 │   ├── render_split.sh         # Render all pages of a dataset split with GT boxes
+│   ├── resample_hard.sh        # Re-augment specific rows of the hard split
 │   └── run_inference.sh        # Benchmark inference across splits
 ├── migrate_annotations.py      # One-shot migration script for label renames
 ├── output/                     # Augmented PNGs and inference results (not tracked)
@@ -58,7 +63,8 @@ multimodal-deid/
 │   ├── dataprep/
 │   │   ├── annotation_app.html # Standalone browser annotation tool (no server needed)
 │   │   ├── augment_pdfs.py     # PDF / HF dataset → augmented split pipeline
-│   │   └── build_dataset.py    # Annotated PDFs → HuggingFace Dataset
+│   │   ├── build_dataset.py    # Annotated PDFs → HuggingFace Dataset
+│   │   └── push_to_hub.py      # Resize local splits to target DPI and push to HF Hub
 │   ├── inference/
 │   │   ├── metrics.py          # Full benchmark metric suite
 │   │   ├── render_predictions.py # Overlay prediction boxes on page images
@@ -364,6 +370,8 @@ General:
   --seed INT              Random seed (default: 42)
   --max_samples INT       Cap the number of samples processed (useful for quick checks)
   --batch_size INT        Concurrent requests sent to the server per batch (default: 8)
+  --guided_json           Enable vLLM structured outputs — constrains model to the JSON schema
+                          defined in the template (requires vLLM with xgrammar backend)
 
 Dataset:
   --input_dataset PATH    HF repo ID or local path to the HF dataset root [required]
@@ -381,7 +389,7 @@ Backend / API:
   --api_key STR           API key; use EMPTY for local VLLM (default: EMPTY)
   --max_new_tokens INT    Max tokens to generate (default: 2048)
   --timeout INT           Request timeout in seconds (default: 120)
-  --max_retries INT       Retry attempts on transient errors (default: 3)
+  --max_retries INT       Attempts per sample on parse failure; 0 = single attempt (default: 3)
 
 Sampling (for thinking models):
   --temperature FLOAT     Sampling temperature (None = server default)
@@ -429,6 +437,11 @@ JSON array of `{label, text, bboxes}` objects with coordinates in `[0, 1000]` ra
 The inference script rescales to `[0, 1]` automatically. Curly braces in template string
 content must be doubled (`{{`, `}}`) to avoid Python's `.format()` interpreting them.
 
+Templates can also define a `structured_output` block — a JSON schema expressed as native
+YAML. When `--guided_json` is set, this schema is passed to the API via `response_format`
+to constrain the model's output. The `label.enum` field accepts the placeholder `"{labels}"`
+which is replaced at load time with the actual label list from `config/labels.yaml`.
+
 ### Rendering Predictions
 
 After an inference run, overlay predicted bounding boxes on page images:
@@ -452,7 +465,7 @@ To render ground-truth annotations for a whole dataset split:
 
 ### Metrics
 
-Results in `results.json` are structured into three groups. The full design rationale is in `docs/metrics_design.md`.
+Results in `results.json` are structured into three groups. Full metric definitions with mathematical formulations are in `docs/metrics.md`. Design rationale is in `docs/metrics_design.md`.
 
 #### `summary` — flat headline numbers
 
@@ -525,7 +538,7 @@ and writes the augmented pages as a new split. The annotation columns (`annotati
 | `--output_split STR` | Output split name (e.g. `medium`) |
 | `--push_to_hub` | Push the result to HF Hub (requires `HF_TOKEN`) |
 | `--output_scale FLOAT` | Downscale images after augmentation (e.g. `0.667` to go from 300→200 DPI equivalent). Default 1.0 = no resize. |
-| `--resample_ids PATH` | Path to a text file of page IDs to resample (for targeted re-augmentation). |
+| `--resample_ids INT+` | Row indices (0-based) to re-augment; all other rows are kept unchanged. |
 
 ### Configuration Reference
 

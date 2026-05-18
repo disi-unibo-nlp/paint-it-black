@@ -98,7 +98,8 @@ def _build_parser() -> ConfigArgumentParser:
     parser.add_argument("--api_key", type=str, default="EMPTY")
     parser.add_argument("--max_new_tokens", type=int, default=2048)
     parser.add_argument("--timeout", type=int, default=120)
-    parser.add_argument("--max_retries", type=int, default=3)
+    parser.add_argument("--max_retries", type=int, default=3,
+                        help="Attempts per sample on parse failure (0 = single attempt, no retries)")
     parser.add_argument("--temperature", type=float, default=None,
                         help="Sampling temperature (None = server default)")
     parser.add_argument("--top_p", type=float, default=None,
@@ -111,6 +112,8 @@ def _build_parser() -> ConfigArgumentParser:
                         help="Pass chat_template_kwargs={enable_thinking:True} to vLLM (Qwen3 thinking models)")
 
     # Dataset cap
+    parser.add_argument("--guided_json", action="store_true", default=False,
+                        help="Enable vLLM structured outputs using the schema from the template")
     parser.add_argument("--max_samples", type=int, default=None,
                         help="Cap the number of samples processed (useful for quick checks)")
     parser.add_argument("--batch_size", type=int, default=8,
@@ -125,16 +128,24 @@ def _build_parser() -> ConfigArgumentParser:
     return parser
 
 
-def _process_sample(idx: int, row: dict, handler, client) -> dict:
-    try:
-        messages = handler.format(page_image=row["image"])
-        raw = client.complete(messages)
-        entities, success = _parse_json_output(raw)
-        if success:
-            entities = _rescale_entities(entities)
-    except Exception as exc:
-        logger.error("Error on sample %d: %r", idx, exc)
-        raw, entities, success = "", [], False
+def _process_sample(idx: int, row: dict, handler, client, max_retries: int = 0) -> dict:
+    raw, entities, success = "", [], False
+    max_attempts = max(1, max_retries)
+    for attempt in range(max_attempts):
+        try:
+            messages = handler.format(page_image=row["image"])
+            raw = client.complete(messages)
+            entities, success = _parse_json_output(raw)
+            if success:
+                entities = _rescale_entities(entities)
+                break
+            if max_retries > 0 and attempt < max_attempts - 1:
+                logger.warning("Parse failed on sample %d (attempt %d/%d), retrying...",
+                               idx, attempt + 1, max_attempts)
+        except Exception as exc:
+            logger.error("Error on sample %d: %r", idx, exc)
+            raw, entities, success = "", [], False
+            break
     return {
         "idx":          idx,
         "page":         row.get("page"),
@@ -167,6 +178,10 @@ def _run(args) -> None:
     handler = TemplateHandler.from_yaml(args.template, labels=labels)
     logger.info("Loaded template from %s", args.template)
 
+    json_schema = handler.structured_output_schema if args.guided_json else None
+    if args.guided_json and json_schema is None:
+        logger.warning("--guided_json set but template has no structured_output schema; ignoring.")
+
     # Optional HF authentication
     token = os.environ.get("HF_TOKEN")
     if token:
@@ -194,12 +209,12 @@ def _run(args) -> None:
         model=args.model,
         max_new_tokens=args.max_new_tokens,
         timeout=args.timeout,
-        max_retries=args.max_retries,
         temperature=args.temperature,
         top_p=args.top_p,
         top_k=args.top_k,
         min_p=args.min_p,
         enable_thinking=args.enable_thinking,
+        json_schema=json_schema,
     )
 
     rows = list(ds)
@@ -217,7 +232,7 @@ def _run(args) -> None:
                 batch_start + 1, min(batch_start + len(batch), n), n,
             )
             futures = {
-                executor.submit(_process_sample, batch_start + i, row, handler, client): batch_start + i
+                executor.submit(_process_sample, batch_start + i, row, handler, client, args.max_retries): batch_start + i
                 for i, row in enumerate(batch)
             }
             for future in as_completed(futures):

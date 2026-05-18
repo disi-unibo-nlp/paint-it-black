@@ -16,4 +16,6 @@ max_new_tokens: 2048
 timeout: 60
 max_retries: 3
 
+guided_json: false
+
 iou_thresholds: [0.25, 0.5, 0.75]

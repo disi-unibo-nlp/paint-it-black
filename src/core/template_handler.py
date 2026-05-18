@@ -7,6 +7,17 @@ import re
 import yaml
 
 
+def _inject_labels_into_schema(node, labels_list: list):
+    """Recursively replace the sentinel string "{labels}" with the labels list."""
+    if isinstance(node, dict):
+        return {k: _inject_labels_into_schema(v, labels_list) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_inject_labels_into_schema(item, labels_list) for item in node]
+    if node == "{labels}":
+        return labels_list
+    return node
+
+
 @dataclass
 class OutputField:
     """
@@ -112,6 +123,7 @@ class TemplateHandler:
         self,
         messages: list,
         output_fields: Optional[list] = None,
+        structured_output_schema: Optional[dict] = None,
     ):
         """
         Args:
@@ -122,6 +134,7 @@ class TemplateHandler:
         """
         self.messages = messages
         self.output_fields: list[OutputField] = output_fields or []
+        self.structured_output_schema: Optional[dict] = structured_output_schema
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path], labels: Optional[list] = None) -> "TemplateHandler":
@@ -156,7 +169,11 @@ class TemplateHandler:
                 )
             )
 
-        return cls(messages=messages, output_fields=output_fields)
+        schema = data.get("structured_output")
+        if schema is not None and labels:
+            schema = _inject_labels_into_schema(schema, list(labels))
+
+        return cls(messages=messages, output_fields=output_fields, structured_output_schema=schema)
 
     def format(self, include_last_assistant: bool = False, **kwargs) -> list:
         """

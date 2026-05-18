@@ -145,6 +145,7 @@ class TestDatasetLoading:
                 seed=42,
                 wandb=False,
                 batch_size=8,
+                guided_json=False,
             )
 
             _run(args)
@@ -233,6 +234,7 @@ class TestDatasetLoading:
                 seed=42,
                 wandb=False,
                 batch_size=8,
+                guided_json=False,
             )
 
             _run(args)
@@ -319,6 +321,7 @@ class TestDatasetLoading:
                 seed=42,
                 wandb=False,
                 batch_size=8,
+                guided_json=False,
             )
 
             _run(args)
@@ -402,6 +405,7 @@ class TestDatasetLoading:
                 seed=42,
                 wandb=False,
                 batch_size=8,
+                guided_json=False,
             )
 
             _run(args)
