@@ -172,10 +172,9 @@ def compute_metrics(
         format_compliance: Pre-computed fraction of parseable outputs (0–1), or None.
 
     Returns:
-        Nested dict with keys:
-          entity_detection_f1, end_to_end_f1, char_f1, edit_distance,
-          exact_match_rate, mean_iou, hallucination_rate, miss_rate,
-          coarse_f1, per_label_breakdown, format_compliance, label_confusion.
+        Nested dict with top-level keys:
+          summary, text_extraction, bbox_localization,
+          hallucination_rate, miss_rate, coarse_f1, label_confusion, format_compliance.
     """
     if iou_thresholds is None:
         iou_thresholds = [0.25, 0.5, 0.75]
@@ -197,13 +196,17 @@ def compute_metrics(
     ex_tp = ex_fp = ex_fn = 0
     ex_per_label = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
 
-    char_f1_scores, edit_dist_scores, iou_scores = [], [], []
+    # text_extraction accumulators — filled from text-matched pairs (bbox-independent)
+    char_f1_scores, edit_dist_scores = [], []
     exact_matches = 0
-    total_gt = 0
+
+    # bbox_localization accumulators
+    iou_scores = []              # IoU of pairs matched at IoU > 0.5 (mean_iou)
+    unconditional_iou_scores = []  # best same-label IoU per GT entity, 0 if unmatched
+
     label_confusion = defaultdict(lambda: defaultdict(int))
 
     for preds, gts in zip(all_predictions, all_gt):
-        total_gt += len(gts)
 
         # ── Detection (partial text-based matching) ───────────────────────────
         matched_d, unmatched_pd, unmatched_gd = match_entities_by_text(preds, gts)
@@ -216,6 +219,13 @@ def compute_metrics(
             det_per_label[p["label"]]["fp"] += 1
         for g in unmatched_gd:
             det_per_label[g["label"]]["fn"] += 1
+
+        # ── Text quality — from text-matched pairs (decoupled from bbox) ──────
+        for p, g in matched_d:
+            char_f1_scores.append(text_char_f1(p["text"], g["text"]))
+            edit_dist_scores.append(normalized_edit_distance(p["text"], g["text"]))
+            if p["text"].strip().lower() == g["text"].strip().lower():
+                exact_matches += 1
 
         # ── Exact span (exact text + label match) ─────────────────────────────
         matched_ex, unmatched_pex, unmatched_gex = match_entities_by_exact_text(preds, gts)
@@ -242,16 +252,11 @@ def compute_metrics(
             for g in unmatched_ge:
                 e2e_per_label[thr][g["label"]]["fn"] += 1
 
-        # ── Text quality and IoU for pairs matched at IoU>0.5 ─────────────────
+        # ── IoU scores at 0.5 (mean_iou) + label confusion ───────────────────
         matched_05, unmatched_pe_05, _ = match_entities_by_bbox(preds, gts, 0.5)
         for p, g in matched_05:
-            char_f1_scores.append(text_char_f1(p["text"], g["text"]))
-            edit_dist_scores.append(normalized_edit_distance(p["text"], g["text"]))
             iou_scores.append(bbox_iou(p["bboxes"], g["bboxes"]))
-            if p["text"].strip().lower() == g["text"].strip().lower():
-                exact_matches += 1
 
-        # ── Label confusion: FP preds overlapping a differently-labelled GT ───
         for p in unmatched_pe_05:
             best_iou, best_label = 0.0, None
             for g in gts:
@@ -260,6 +265,14 @@ def compute_metrics(
                     best_iou, best_label = iou, g["label"]
             if best_label and best_iou > 0.3:
                 label_confusion[best_label][p["label"]] += 1
+
+        # ── Unconditional IoU: best same-label pred IoU per GT entity ─────────
+        for g in gts:
+            best = max(
+                (bbox_iou(p["bboxes"], g["bboxes"]) for p in preds if p["label"] == g["label"]),
+                default=0.0,
+            )
+            unconditional_iou_scores.append(best)
 
     # ── Aggregate detection metrics ───────────────────────────────────────────
     det_micro = _prf(det_tp, det_fp, det_fn)
@@ -283,6 +296,11 @@ def compute_metrics(
         e2e_macro = _macro_prf(e2e_per_label[thr], all_labels)
         e2e_results[thr] = {"micro": micro, "per_label": per_label_prf, **e2e_macro}
 
+    avg_e2e_f1 = float(np.mean([
+        _prf(e2e_totals[thr]["tp"], e2e_totals[thr]["fp"], e2e_totals[thr]["fn"])["f1"]
+        for thr in iou_thresholds
+    ])) if iou_thresholds else 0.0
+
     # ── Coarse F1 (collapse label to parent before ":") ──────────────────────
     coarse = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
     for label, cnt in det_per_label.items():
@@ -301,26 +319,64 @@ def compute_metrics(
         hall_per_label[label] = fp / (tp + fp) if (tp + fp) > 0 else 0.0
         miss_per_label[label] = fn / (tp + fn) if (tp + fn) > 0 else 0.0
 
+    # ── Derived scalars ───────────────────────────────────────────────────────
+    _char_f1       = float(np.mean(char_f1_scores))      if char_f1_scores      else 0.0
+    _edit_dist     = float(np.mean(edit_dist_scores))     if edit_dist_scores    else 0.0
+    _exact_rate    = exact_matches / len(char_f1_scores)  if char_f1_scores      else 0.0
+    _mean_iou      = float(np.mean(iou_scores))           if iou_scores          else 0.0
+    _uncond_iou    = float(np.mean(unconditional_iou_scores)) if unconditional_iou_scores else 0.0
+
     return {
-        "entity_detection_f1": {
-            "micro": det_micro,
-            "per_label": det_per_label_prf,
-            **det_macro,
+        # ── Summary (flat, first thing you see) ───────────────────────────────
+        "summary": {
+            "detection_micro_f1":     det_micro["f1"],
+            "detection_macro_f1":     det_macro["macro_f1"],
+            "avg_e2e_f1":             avg_e2e_f1,
+            "unconditional_mean_iou": _uncond_iou,
+            "mean_iou":               _mean_iou,
+            "char_f1":                _char_f1,
+            "exact_match_rate":       _exact_rate,
+            "hallucination_rate":     hall_overall,
+            "miss_rate":              miss_overall,
+            "format_compliance":      format_compliance,
         },
-        "span_exact_f1": {
-            "micro": ex_micro,
-            "per_label": ex_per_label_prf,
-            **ex_macro,
+
+        # ── Text extraction ───────────────────────────────────────────────────
+        "text_extraction": {
+            "detection": {
+                "micro":    det_micro,
+                "per_label": det_per_label_prf,
+                **det_macro,
+            },
+            "span_exact": {
+                "micro":    ex_micro,
+                "per_label": ex_per_label_prf,
+                **ex_macro,
+            },
+            "char_f1":         _char_f1,
+            "edit_distance":   _edit_dist,
+            "exact_match_rate": _exact_rate,
         },
-        "end_to_end_f1": e2e_results,
-        "char_f1": float(np.mean(char_f1_scores)) if char_f1_scores else 0.0,
-        "edit_distance": float(np.mean(edit_dist_scores)) if edit_dist_scores else 0.0,
-        "exact_match_rate": exact_matches / total_gt if total_gt > 0 else 0.0,
-        "mean_iou": float(np.mean(iou_scores)) if iou_scores else 0.0,
+
+        # ── Bbox localisation ─────────────────────────────────────────────────
+        "bbox_localization": {
+            "avg_e2e_f1":             avg_e2e_f1,
+            "mean_iou":               _mean_iou,
+            "unconditional_mean_iou": _uncond_iou,
+            "end_to_end": {
+                f"@{thr}": {
+                    "micro":    e2e_results[thr]["micro"],
+                    "per_label": e2e_results[thr]["per_label"],
+                    **{k: v for k, v in e2e_results[thr].items() if k not in ("micro", "per_label")},
+                }
+                for thr in iou_thresholds
+            },
+        },
+
+        # ── Diagnostics ───────────────────────────────────────────────────────
         "hallucination_rate": {"overall": hall_overall, "per_label": hall_per_label},
-        "miss_rate": {"overall": miss_overall, "per_label": miss_per_label},
-        "coarse_f1": coarse_prf,
-        "per_label_breakdown": det_per_label_prf,
-        "format_compliance": format_compliance,
-        "label_confusion": {k: dict(v) for k, v in label_confusion.items()},
+        "miss_rate":          {"overall": miss_overall, "per_label": miss_per_label},
+        "coarse_f1":          coarse_prf,
+        "label_confusion":    {k: dict(v) for k, v in label_confusion.items()},
+        "format_compliance":  format_compliance,
     }

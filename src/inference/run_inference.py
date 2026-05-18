@@ -234,9 +234,10 @@ def _run(args) -> None:
 
 
 def _log_metrics_summary(metrics: dict) -> None:
-    det = metrics["entity_detection_f1"]
-    e2e_05 = metrics["end_to_end_f1"].get(0.5, {}).get("micro", {})
-    ex = metrics["span_exact_f1"]["micro"]
+    s   = metrics["summary"]
+    det = metrics["text_extraction"]["detection"]
+    ex  = metrics["text_extraction"]["span_exact"]["micro"]
+    e2e_05 = metrics["bbox_localization"]["end_to_end"].get("@0.5", {}).get("micro", {})
     logger.info("─── Benchmark Results ───────────────────────────────────")
     logger.info("Entity Det  micro  P=%.3f  R=%.3f  F1=%.3f",
                 det["micro"]["precision"], det["micro"]["recall"], det["micro"]["f1"])
@@ -247,12 +248,13 @@ def _log_metrics_summary(metrics: dict) -> None:
     if e2e_05:
         logger.info("End-to-End @0.5   P=%.3f  R=%.3f  F1=%.3f",
                     e2e_05["precision"], e2e_05["recall"], e2e_05["f1"])
-    logger.info("Char F1: %.3f  |  Exact Match: %.3f  |  Mean IoU: %.3f",
-                metrics["char_f1"], metrics["exact_match_rate"], metrics["mean_iou"])
+    logger.info("Avg E2E F1: %.3f  |  Uncond. Mean IoU: %.3f  |  Mean IoU (@0.5 matched): %.3f",
+                s["avg_e2e_f1"], s["unconditional_mean_iou"], s["mean_iou"])
+    logger.info("Char F1: %.3f  |  Exact Match: %.3f",
+                s["char_f1"], s["exact_match_rate"])
     logger.info("Hallucination rate: %.3f  |  Miss rate: %.3f",
-                metrics["hallucination_rate"]["overall"],
-                metrics["miss_rate"]["overall"])
-    logger.info("Format compliance: %.3f", metrics["format_compliance"] or 0.0)
+                s["hallucination_rate"], s["miss_rate"])
+    logger.info("Format compliance: %.3f", s["format_compliance"] or 0.0)
     logger.info("─────────────────────────────────────────────────────────")
 
 
@@ -282,10 +284,10 @@ def _log_wandb_metrics(metrics: dict) -> None:
     except ImportError:
         return
 
-    det = metrics["entity_detection_f1"]
-    e2e = metrics["end_to_end_f1"]
-
-    ex = metrics["span_exact_f1"]
+    det = metrics["text_extraction"]["detection"]
+    ex  = metrics["text_extraction"]["span_exact"]
+    e2e = metrics["bbox_localization"]["end_to_end"]
+    s   = metrics["summary"]
     flat = {
         "detection/micro/f1":        det["micro"]["f1"],
         "detection/micro/precision":  det["micro"]["precision"],
@@ -300,15 +302,17 @@ def _log_wandb_metrics(metrics: dict) -> None:
         "span_exact/macro_f1":       ex["macro_f1"],
         "span_exact/macro_precision": ex["macro_precision"],
         "span_exact/macro_recall":    ex["macro_recall"],
-        "e2e/f1_at_0.25": e2e.get(0.25, {}).get("micro", {}).get("f1", 0.0),
-        "e2e/f1_at_0.5":  e2e.get(0.5,  {}).get("micro", {}).get("f1", 0.0),
-        "e2e/f1_at_0.75": e2e.get(0.75, {}).get("micro", {}).get("f1", 0.0),
-        "char_f1": metrics["char_f1"],
-        "exact_match_rate": metrics["exact_match_rate"],
-        "mean_iou": metrics["mean_iou"],
-        "hallucination_rate": metrics["hallucination_rate"]["overall"],
-        "miss_rate": metrics["miss_rate"]["overall"],
-        "format_compliance": metrics["format_compliance"] or 0.0,
+        "e2e/f1_at_0.25": e2e.get("@0.25", {}).get("micro", {}).get("f1", 0.0),
+        "e2e/f1_at_0.5":  e2e.get("@0.5",  {}).get("micro", {}).get("f1", 0.0),
+        "e2e/f1_at_0.75": e2e.get("@0.75", {}).get("micro", {}).get("f1", 0.0),
+        "e2e/avg_f1":               s["avg_e2e_f1"],
+        "char_f1":                  s["char_f1"],
+        "exact_match_rate":         s["exact_match_rate"],
+        "mean_iou":                 s["mean_iou"],
+        "unconditional_mean_iou":   s["unconditional_mean_iou"],
+        "hallucination_rate":       s["hallucination_rate"],
+        "miss_rate":                s["miss_rate"],
+        "format_compliance":        s["format_compliance"] or 0.0,
         **{f"per_label/{label}/f1": prf["f1"]
            for label, prf in det["per_label"].items()},
     }

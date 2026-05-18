@@ -8,7 +8,7 @@
 #   ./experiments/quick_eval.sh --n 10        # number of samples (default 5)
 #   ./experiments/quick_eval.sh --split medium # dataset split (default base)
 
-DATASET_DIR=dfreddi/multimodal-deid
+DATASET_DIR=disi-unibo-nlp/paint-it-black
 MODEL=Qwen/Qwen3.5-9B
 SPLIT=base
 N=10
