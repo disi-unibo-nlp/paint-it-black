@@ -14,7 +14,7 @@ RUN_NAME=e1_q35-9B_base
 # Run evaluations for base, medium, and hard splits
 for SPLIT in base; do # medium hard
     RUN_NAME=e1_q35-9B_${SPLIT}
-    CONFIG=config/inference/${SPLIT}.yaml
+    CONFIG=config/inference/base.yaml
 
     echo "Running inference for split: $SPLIT"
     ./scripts/run_vllm_inference.sh \
