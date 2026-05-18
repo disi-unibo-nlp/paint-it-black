@@ -287,6 +287,8 @@ def _log_metrics_summary(metrics: dict) -> None:
                 s["avg_e2e_f1"], s["unconditional_mean_iou"], s["mean_iou"])
     logger.info("Char F1: %.3f  |  Exact Match: %.3f",
                 s["char_f1"], s["exact_match_rate"])
+    logger.info("Spatial Char F1: %.3f  |  Spatial Exact Match: %.3f",
+                s["spatial_char_f1"], s["spatial_exact_match_rate"])
     logger.info("Hallucination rate: %.3f  |  Miss rate: %.3f",
                 s["hallucination_rate"], s["miss_rate"])
     logger.info("Format compliance: %.3f", s["format_compliance"] or 0.0)
@@ -343,6 +345,8 @@ def _log_wandb_metrics(metrics: dict) -> None:
         "e2e/avg_f1":               s["avg_e2e_f1"],
         "char_f1":                  s["char_f1"],
         "exact_match_rate":         s["exact_match_rate"],
+        "spatial_char_f1":          s["spatial_char_f1"],
+        "spatial_exact_match_rate": s["spatial_exact_match_rate"],
         "mean_iou":                 s["mean_iou"],
         "unconditional_mean_iou":   s["unconditional_mean_iou"],
         "hallucination_rate":       s["hallucination_rate"],

@@ -155,8 +155,8 @@ def test_summary_block_keys():
     m = compute_metrics([[]], [[]], iou_thresholds=[0.5])
     for key in ["detection_micro_f1", "detection_macro_f1", "avg_e2e_f1",
                 "unconditional_mean_iou", "mean_iou", "char_f1",
-                "exact_match_rate", "hallucination_rate", "miss_rate",
-                "format_compliance"]:
+                "exact_match_rate", "spatial_char_f1", "spatial_exact_match_rate",
+                "hallucination_rate", "miss_rate", "format_compliance"]:
         assert key in m["summary"], f"Missing key in summary: {key}"
 
 def test_text_extraction_keys():
@@ -168,7 +168,8 @@ def test_text_extraction_keys():
 def test_bbox_localization_keys():
     m = compute_metrics([[]], [[]], iou_thresholds=[0.5])
     bl = m["bbox_localization"]
-    for key in ["avg_e2e_f1", "mean_iou", "unconditional_mean_iou", "end_to_end"]:
+    for key in ["avg_e2e_f1", "mean_iou", "unconditional_mean_iou", "end_to_end",
+                "spatial_char_f1", "spatial_exact_match_rate"]:
         assert key in bl, f"Missing key in bbox_localization: {key}"
 
 def test_e2e_threshold_keys_are_strings():
@@ -361,3 +362,25 @@ def test_text_quality_decoupled_from_iou():
     assert m["bbox_localization"]["end_to_end"]["@0.5"]["micro"]["f1"] == pytest.approx(0.0)
     # mean_iou is 0 (no IoU-matched pairs)
     assert m["bbox_localization"]["mean_iou"] == pytest.approx(0.0)
+    # spatial_char_f1 is 0 — no spatially matched pairs exist
+    assert m["bbox_localization"]["spatial_char_f1"] == pytest.approx(0.0)
+
+
+def test_spatial_char_f1_perfect():
+    """Correct box AND correct text → spatial metrics = 1.0."""
+    pred = [{"label": "NAME:PATIENT", "text": "Mario Rossi", "bboxes": [[0.1, 0.1, 0.3, 0.4]]}]
+    gt   = [{"label": "NAME:PATIENT", "text": "Mario Rossi", "bboxes": [[0.1, 0.1, 0.3, 0.4]]}]
+    m = compute_metrics([pred], [gt], iou_thresholds=[0.5])
+    assert m["bbox_localization"]["spatial_char_f1"] == pytest.approx(1.0)
+    assert m["bbox_localization"]["spatial_exact_match_rate"] == pytest.approx(1.0)
+    assert m["summary"]["spatial_char_f1"] == pytest.approx(1.0)
+
+
+def test_spatial_char_f1_box_ok_text_wrong():
+    """Correct box but partial text → spatial pair exists, char_f1 partial, exact_match = 0."""
+    pred = [{"label": "NAME:PATIENT", "text": "M. Rossi",    "bboxes": [[0.1, 0.1, 0.3, 0.4]]}]
+    gt   = [{"label": "NAME:PATIENT", "text": "Mario Rossi", "bboxes": [[0.1, 0.1, 0.3, 0.4]]}]
+    m = compute_metrics([pred], [gt], iou_thresholds=[0.5])
+    # IoU = 1.0 → bbox match exists → spatial pair computed
+    assert 0.0 < m["bbox_localization"]["spatial_char_f1"] < 1.0
+    assert m["bbox_localization"]["spatial_exact_match_rate"] == pytest.approx(0.0)

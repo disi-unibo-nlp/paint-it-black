@@ -203,6 +203,8 @@ def compute_metrics(
     # bbox_localization accumulators
     iou_scores = []              # IoU of pairs matched at IoU > 0.5 (mean_iou)
     unconditional_iou_scores = []  # best same-label IoU per GT entity, 0 if unmatched
+    spatial_char_f1_scores = []  # char_f1 on pairs matched at IoU > 0.5
+    spatial_exact_matches = 0
 
     label_confusion = defaultdict(lambda: defaultdict(int))
 
@@ -256,6 +258,9 @@ def compute_metrics(
         matched_05, unmatched_pe_05, _ = match_entities_by_bbox(preds, gts, 0.5)
         for p, g in matched_05:
             iou_scores.append(bbox_iou(p["bboxes"], g["bboxes"]))
+            spatial_char_f1_scores.append(text_char_f1(p["text"], g["text"]))
+            if p["text"].strip().lower() == g["text"].strip().lower():
+                spatial_exact_matches += 1
 
         for p in unmatched_pe_05:
             best_iou, best_label = 0.0, None
@@ -320,11 +325,13 @@ def compute_metrics(
         miss_per_label[label] = fn / (tp + fn) if (tp + fn) > 0 else 0.0
 
     # ── Derived scalars ───────────────────────────────────────────────────────
-    _char_f1       = float(np.mean(char_f1_scores))      if char_f1_scores      else 0.0
-    _edit_dist     = float(np.mean(edit_dist_scores))     if edit_dist_scores    else 0.0
-    _exact_rate    = exact_matches / len(char_f1_scores)  if char_f1_scores      else 0.0
-    _mean_iou      = float(np.mean(iou_scores))           if iou_scores          else 0.0
-    _uncond_iou    = float(np.mean(unconditional_iou_scores)) if unconditional_iou_scores else 0.0
+    _char_f1           = float(np.mean(char_f1_scores))          if char_f1_scores           else 0.0
+    _edit_dist         = float(np.mean(edit_dist_scores))         if edit_dist_scores         else 0.0
+    _exact_rate        = exact_matches / len(char_f1_scores)      if char_f1_scores           else 0.0
+    _mean_iou          = float(np.mean(iou_scores))               if iou_scores               else 0.0
+    _uncond_iou        = float(np.mean(unconditional_iou_scores)) if unconditional_iou_scores else 0.0
+    _spatial_char_f1   = float(np.mean(spatial_char_f1_scores))   if spatial_char_f1_scores   else 0.0
+    _spatial_exact     = spatial_exact_matches / len(spatial_char_f1_scores) if spatial_char_f1_scores else 0.0
 
     return {
         # ── Summary (flat, first thing you see) ───────────────────────────────
@@ -336,6 +343,8 @@ def compute_metrics(
             "mean_iou":               _mean_iou,
             "char_f1":                _char_f1,
             "exact_match_rate":       _exact_rate,
+            "spatial_char_f1":        _spatial_char_f1,
+            "spatial_exact_match_rate": _spatial_exact,
             "hallucination_rate":     hall_overall,
             "miss_rate":              miss_overall,
             "format_compliance":      format_compliance,
@@ -363,6 +372,8 @@ def compute_metrics(
             "avg_e2e_f1":             avg_e2e_f1,
             "mean_iou":               _mean_iou,
             "unconditional_mean_iou": _uncond_iou,
+            "spatial_char_f1":        _spatial_char_f1,
+            "spatial_exact_match_rate": _spatial_exact,
             "end_to_end": {
                 f"@{thr}": {
                     "micro":    e2e_results[thr]["micro"],

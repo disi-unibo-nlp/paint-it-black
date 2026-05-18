@@ -94,6 +94,7 @@ class TestDatasetLoading:
                     "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
                     "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
                     "char_f1": 0.85, "exact_match_rate": 0.7,
+                    "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
                     "hallucination_rate": 0.1, "miss_rate": 0.15, "format_compliance": 0.95,
                 },
                 "text_extraction": {
@@ -110,6 +111,7 @@ class TestDatasetLoading:
                 },
                 "bbox_localization": {
                     "avg_e2e_f1": 0.8, "mean_iou": 0.75, "unconditional_mean_iou": 0.6,
+                    "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
                     "end_to_end": {
                         "@0.5": {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8},
                                  "per_label": {}, "macro_f1": 0.8, "macro_precision": 0.8, "macro_recall": 0.8},
@@ -183,6 +185,7 @@ class TestDatasetLoading:
                     "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
                     "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
                     "char_f1": 0.85, "exact_match_rate": 0.7,
+                    "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
                     "hallucination_rate": 0.1, "miss_rate": 0.15, "format_compliance": 0.95,
                 },
                 "text_extraction": {
@@ -199,6 +202,7 @@ class TestDatasetLoading:
                 },
                 "bbox_localization": {
                     "avg_e2e_f1": 0.8, "mean_iou": 0.75, "unconditional_mean_iou": 0.6,
+                    "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
                     "end_to_end": {
                         "@0.5": {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8},
                                  "per_label": {}, "macro_f1": 0.8, "macro_precision": 0.8, "macro_recall": 0.8},
@@ -271,6 +275,7 @@ class TestDatasetLoading:
                     "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
                     "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
                     "char_f1": 0.85, "exact_match_rate": 0.7,
+                    "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
                     "hallucination_rate": 0.1, "miss_rate": 0.15, "format_compliance": 0.95,
                 },
                 "text_extraction": {
@@ -287,6 +292,7 @@ class TestDatasetLoading:
                 },
                 "bbox_localization": {
                     "avg_e2e_f1": 0.8, "mean_iou": 0.75, "unconditional_mean_iou": 0.6,
+                    "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
                     "end_to_end": {
                         "@0.5": {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8},
                                  "per_label": {}, "macro_f1": 0.8, "macro_precision": 0.8, "macro_recall": 0.8},
@@ -355,6 +361,7 @@ class TestDatasetLoading:
                     "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
                     "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
                     "char_f1": 0.85, "exact_match_rate": 0.7,
+                    "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
                     "hallucination_rate": 0.1, "miss_rate": 0.15, "format_compliance": 0.95,
                 },
                 "text_extraction": {
@@ -371,6 +378,7 @@ class TestDatasetLoading:
                 },
                 "bbox_localization": {
                     "avg_e2e_f1": 0.8, "mean_iou": 0.75, "unconditional_mean_iou": 0.6,
+                    "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
                     "end_to_end": {
                         "@0.5": {"micro": {"precision": 0.8, "recall": 0.8, "f1": 0.8},
                                  "per_label": {}, "macro_f1": 0.8, "macro_precision": 0.8, "macro_recall": 0.8},
