@@ -74,7 +74,8 @@ def _draw_box(
     draw.rectangle([x0, y0, x1, y1], fill=fill, outline=stroke, width=stroke_w)
 
     chip_h = max(14, int(14 * scale))
-    chip_w = len(label) * max(6, int(6 * scale)) + int(6 * scale)
+    tb     = draw.textbbox((0, 0), label, font=font)
+    chip_w = tb[2] - tb[0] + int(8 * scale)
     if label_above:
         cy = max(0, y0 - chip_h)
     else:

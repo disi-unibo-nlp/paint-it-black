@@ -471,13 +471,15 @@ Results in `results.json` are structured into three groups. Full metric definiti
 
 | Key | Description |
 |---|---|
-| `detection_micro_f1` | Micro F1 from text-based entity matching (bbox-blind) |
-| `detection_macro_f1` | Macro F1 over supported labels (text-based) |
+| `span_exact_micro_f1` | Micro F1 from exact-text entity matching (bbox-blind) |
+| `span_exact_macro_f1` | Macro F1 over supported labels (exact text match) |
 | `avg_e2e_f1` | Mean end-to-end F1 across all IoU thresholds — single bbox quality number (analogous to COCO mAP) |
 | `unconditional_mean_iou` | Mean best same-label IoU per GT entity, 0 if unmatched — honest localization quality |
 | `mean_iou` | Mean IoU for pairs matched at IoU > 0.5 only (always ≥ 0.5 by construction; use unconditional_mean_iou for overall quality) |
 | `char_f1` | Mean SQuAD-style char-level F1 on text-matched pairs (independent of bbox) |
 | `exact_match_rate` | Fraction of text-matched pairs with exact text reproduction |
+| `spatial_char_f1` | Mean char-level F1 on spatially-matched pairs (IoU > 0.5) — joint localization + transcription quality |
+| `spatial_exact_match_rate` | Fraction of spatially-matched pairs (IoU > 0.5) with exact text reproduction |
 | `hallucination_rate` | FP / (TP + FP) — entities predicted that don't correspond to any GT (text-based) |
 | `miss_rate` | FN / (TP + FN) — GT entities not found by the model (text-based) |
 | `format_compliance` | Fraction of samples where the model returned parseable JSON |
@@ -488,11 +490,13 @@ Results in `results.json` are structured into three groups. Full metric definiti
 
 | Key | Description |
 |---|---|
-| `detection` | P/R/F1 with partial text matching. Contains `micro`, `per_label`, and macro keys (`macro_f1`, `macro_precision`, `macro_recall`, `macro_f1_all`). `macro_f1` = average over labels with ≥1 GT instance; `macro_f1_all` = average over all labels including zero-GT ones. |
+| `detection` | P/R/F1 with partial text matching. Contains `micro`, `per_label`, and macro keys. See the macro note below for the distinction between `macro_f1` and `macro_f1_all`. |
 | `span_exact` | Same structure as `detection` but requires exact text match (case-insensitive). Stricter than detection — partial text matches count as FP/FN here. |
 | `char_f1` | Mean character-level F1 for text-matched pairs. Measures transcription accuracy independent of localization. |
 | `edit_distance` | Mean normalised Levenshtein distance for text-matched pairs (0 = identical, 1 = completely different). |
 | `exact_match_rate` | Fraction of text-matched GT entities where text was exactly reproduced. |
+
+> **`macro_f1` vs `macro_f1_all`** — Both are unweighted averages of per-label F1, but they differ in which labels are included. `macro_f1` averages only over labels that have at least one GT instance in the evaluated split ("supported" labels). `macro_f1_all` averages over every label in the full label set, including labels absent from the split (which contribute F1 = 0). `macro_f1_all` is therefore always ≤ `macro_f1`. Use `macro_f1` to measure model quality on the label types actually present; use `macro_f1_all` for a conservative, dataset-coverage-penalised view.
 
 #### `bbox_localization` — spatial localization quality
 
@@ -504,6 +508,8 @@ Results in `results.json` are structured into three groups. Full metric definiti
 | `unconditional_mean_iou` | For each GT entity, best same-label prediction IoU (or 0 if no prediction exists). Mean over all GT entities. Penalises misses and misplacements in full. |
 | `mean_iou` | Mean IoU of pairs that already matched at IoU > 0.5. Always ≥ 0.5; measures precision of well-placed boxes only. |
 | `end_to_end` | Per-threshold breakdown. Keys are strings: `"@0.25"`, `"@0.5"`, `"@0.75"`. Each contains `micro` (P/R/F1/TP/FP/FN), `per_label`, and macro keys. |
+| `spatial_char_f1` | Mean char-level F1 evaluated on bbox-matched pairs (IoU > 0.5). Measures transcription quality conditioned on correct localization. |
+| `spatial_exact_match_rate` | Fraction of bbox-matched pairs (IoU > 0.5) where text was exactly reproduced. |
 
 #### Diagnostics
 

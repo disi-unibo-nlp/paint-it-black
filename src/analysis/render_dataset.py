@@ -53,10 +53,9 @@ def render_row(row: dict, idx: int = 0, total: int = 0) -> Image.Image:
     draw  = ImageDraw.Draw(image, "RGBA")
     w, h  = image.size
 
-    scale   = max(1.0, w / 1000)
-    chip_h  = max(14, int(14 * scale))
-    char_w  = max(6,  int(6  * scale))
-    font    = _get_font(max(10, int(11 * scale)))
+    scale  = max(1.0, w / 1000)
+    chip_h = max(14, int(14 * scale))
+    font   = _get_font(max(10, int(11 * scale)))
     stroke_w = max(2, int(2 * scale))
 
     for ann in row["annotations"]:
@@ -71,8 +70,9 @@ def render_row(row: dict, idx: int = 0, total: int = 0) -> Image.Image:
             x0, y0 = int(x_min * w), int(y_min * h)
             x1, y1 = int(x_max * w), int(y_max * h)
             draw.rectangle([x0, y0, x1, y1], fill=fill, outline=stroke, width=stroke_w)
-            chip_w = len(label) * char_w + int(6 * scale)
-            cy = max(0, y0 - chip_h)
+            tb     = draw.textbbox((0, 0), label, font=font)
+            chip_w = tb[2] - tb[0] + int(8 * scale)
+            cy     = max(0, y0 - chip_h)
             draw.rectangle([x0, cy, x0 + chip_w, cy + chip_h], fill=(*rgb, 200))
             draw.text((x0 + int(3 * scale), cy + int(2 * scale)), label, fill="white", font=font)
 

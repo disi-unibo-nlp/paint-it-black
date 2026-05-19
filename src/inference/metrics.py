@@ -336,8 +336,8 @@ def compute_metrics(
     return {
         # ── Summary (flat, first thing you see) ───────────────────────────────
         "summary": {
-            "detection_micro_f1":     det_micro["f1"],
-            "detection_macro_f1":     det_macro["macro_f1"],
+            "span_exact_micro_f1":    ex_micro["f1"],
+            "span_exact_macro_f1":    ex_macro["macro_f1"],
             "avg_e2e_f1":             avg_e2e_f1,
             "unconditional_mean_iou": _uncond_iou,
             "mean_iou":               _mean_iou,

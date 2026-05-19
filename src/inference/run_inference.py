@@ -270,16 +270,13 @@ def _run(args) -> None:
 
 def _log_metrics_summary(metrics: dict) -> None:
     s   = metrics["summary"]
-    det = metrics["text_extraction"]["detection"]
-    ex  = metrics["text_extraction"]["span_exact"]["micro"]
+    ex  = metrics["text_extraction"]["span_exact"]
     e2e_05 = metrics["bbox_localization"]["end_to_end"].get("@0.5", {}).get("micro", {})
     logger.info("─── Benchmark Results ───────────────────────────────────")
-    logger.info("Entity Det  micro  P=%.3f  R=%.3f  F1=%.3f",
-                det["micro"]["precision"], det["micro"]["recall"], det["micro"]["f1"])
-    logger.info("Entity Det  macro  P=%.3f  R=%.3f  F1=%.3f",
-                det["macro_precision"], det["macro_recall"], det["macro_f1"])
     logger.info("Exact Span  micro  P=%.3f  R=%.3f  F1=%.3f",
-                ex["precision"], ex["recall"], ex["f1"])
+                ex["micro"]["precision"], ex["micro"]["recall"], ex["micro"]["f1"])
+    logger.info("Exact Span  macro  P=%.3f  R=%.3f  F1=%.3f",
+                ex["macro_precision"], ex["macro_recall"], ex["macro_f1"])
     if e2e_05:
         logger.info("End-to-End @0.5   P=%.3f  R=%.3f  F1=%.3f",
                     e2e_05["precision"], e2e_05["recall"], e2e_05["f1"])
@@ -339,6 +336,8 @@ def _log_wandb_metrics(metrics: dict) -> None:
         "span_exact/macro_f1":       ex["macro_f1"],
         "span_exact/macro_precision": ex["macro_precision"],
         "span_exact/macro_recall":    ex["macro_recall"],
+        "summary/span_exact_micro_f1": s["span_exact_micro_f1"],
+        "summary/span_exact_macro_f1": s["span_exact_macro_f1"],
         "e2e/f1_at_0.25": e2e.get("@0.25", {}).get("micro", {}).get("f1", 0.0),
         "e2e/f1_at_0.5":  e2e.get("@0.5",  {}).get("micro", {}).get("f1", 0.0),
         "e2e/f1_at_0.75": e2e.get("@0.75", {}).get("micro", {}).get("f1", 0.0),

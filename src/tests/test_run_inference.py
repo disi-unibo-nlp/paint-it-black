@@ -91,7 +91,7 @@ class TestDatasetLoading:
             mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
                 "summary": {
-                    "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
+                    "span_exact_micro_f1": 0.9, "span_exact_macro_f1": 0.9,
                     "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
                     "char_f1": 0.85, "exact_match_rate": 0.7,
                     "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
@@ -182,7 +182,7 @@ class TestDatasetLoading:
             mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
                 "summary": {
-                    "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
+                    "span_exact_micro_f1": 0.9, "span_exact_macro_f1": 0.9,
                     "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
                     "char_f1": 0.85, "exact_match_rate": 0.7,
                     "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
@@ -272,7 +272,7 @@ class TestDatasetLoading:
             mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
                 "summary": {
-                    "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
+                    "span_exact_micro_f1": 0.9, "span_exact_macro_f1": 0.9,
                     "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
                     "char_f1": 0.85, "exact_match_rate": 0.7,
                     "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,
@@ -358,7 +358,7 @@ class TestDatasetLoading:
             mock_labels.return_value = ["NAME:PATIENT", "DATETIME"]
             mock_metrics.return_value = {
                 "summary": {
-                    "detection_micro_f1": 0.9, "detection_macro_f1": 0.9,
+                    "span_exact_micro_f1": 0.9, "span_exact_macro_f1": 0.9,
                     "avg_e2e_f1": 0.8, "unconditional_mean_iou": 0.6, "mean_iou": 0.75,
                     "char_f1": 0.85, "exact_match_rate": 0.7,
                     "spatial_char_f1": 0.8, "spatial_exact_match_rate": 0.7,

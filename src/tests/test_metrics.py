@@ -153,7 +153,7 @@ def test_compute_metrics_output_keys():
 
 def test_summary_block_keys():
     m = compute_metrics([[]], [[]], iou_thresholds=[0.5])
-    for key in ["detection_micro_f1", "detection_macro_f1", "avg_e2e_f1",
+    for key in ["span_exact_micro_f1", "span_exact_macro_f1", "avg_e2e_f1",
                 "unconditional_mean_iou", "mean_iou", "char_f1",
                 "exact_match_rate", "spatial_char_f1", "spatial_exact_match_rate",
                 "hallucination_rate", "miss_rate", "format_compliance"]:
