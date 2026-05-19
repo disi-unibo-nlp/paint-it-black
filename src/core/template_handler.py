@@ -67,7 +67,7 @@ class ParsedOutput:
 
 def _encode_image(pil_image) -> str:
     buf = io.BytesIO()
-    pil_image.convert("RGB").save(buf, format="JPEG")
+    pil_image.convert("RGB").save(buf, format="JPEG", quality=95)
     b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
     return f"data:image/jpeg;base64,{b64}"
 

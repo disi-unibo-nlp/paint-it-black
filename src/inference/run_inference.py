@@ -62,6 +62,7 @@ def _rescale_entities(entities: list) -> list:
         ent["bboxes"] = [
             [max(0.0, min(1.0, c / scale)) for c in bbox]
             for bbox in ent.get("bboxes", [])
+            if isinstance(bbox, (list, tuple)) and len(bbox) == 4
         ]
         if "text" not in ent:
             ent["text"] = ""
