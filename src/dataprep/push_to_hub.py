@@ -46,7 +46,7 @@ def _make_resize_fn(target_width: int):
     return _fn
 
 
-def _load_and_resize(split_path: Path, split: str, target_width: int):
+def _load_and_resize(split_path: Path, split: str, target_width: int, max_instances: int | None = None):
     if not split_path.is_dir():
         logger.error("Split path not found: %s", split_path)
         return None
@@ -54,6 +54,11 @@ def _load_and_resize(split_path: Path, split: str, target_width: int):
     logger.info("Loading split '%s' from %s", split, split_path)
     ds = load_from_disk(str(split_path))
     logger.info("  %d rows loaded", len(ds))
+
+    if max_instances is not None:
+        n = min(max_instances, len(ds))
+        ds = ds.select(range(n))
+        logger.info("  capped to %d rows (--max_instances)", n)
 
     sample_before = ds[0]["image"]
     logger.info("  sample image size before resize: %dx%d", sample_before.width, sample_before.height)
@@ -83,6 +88,12 @@ def main():
                         help="Page width in inches used to derive the target pixel width (default: 8.27 for A4)")
     parser.add_argument("--private", action="store_true", default=False,
                         help="Push as a private repository")
+    parser.add_argument("--max_instances", type=int, default=None,
+                        help="Cap all splits to the first N rows (same indices across splits)")
+    parser.add_argument("--max_instances_per_split", type=int, nargs="+", default=None,
+                        help="Per-split row caps in the same order as --splits "
+                             "(e.g. --max_instances_per_split 10 20 5). "
+                             "Mutually exclusive with --max_instances.")
     parser.add_argument("--log_level", type=str, default="INFO")
 
     args = parser.parse_args()
@@ -97,6 +108,22 @@ def main():
         logger.error("--hub_dataset is required.")
         sys.exit(1)
 
+    if args.max_instances is not None and args.max_instances_per_split is not None:
+        logger.error("--max_instances and --max_instances_per_split are mutually exclusive.")
+        sys.exit(1)
+    if args.max_instances_per_split is not None and len(args.max_instances_per_split) != len(args.splits):
+        logger.error(
+            "--max_instances_per_split must have exactly %d value(s) (one per split in --splits), got %d.",
+            len(args.splits), len(args.max_instances_per_split),
+        )
+        sys.exit(1)
+
+    per_split_cap = {}
+    if args.max_instances is not None:
+        per_split_cap = {split: args.max_instances for split in args.splits}
+    elif args.max_instances_per_split is not None:
+        per_split_cap = dict(zip(args.splits, args.max_instances_per_split))
+
     target_width = int(args.target_dpi * args.page_width_in)
     logger.info("Target pixel width: %d px  (%.0f DPI × %.2f\")",
                 target_width, args.target_dpi, args.page_width_in)
@@ -105,7 +132,7 @@ def main():
     splits_dict = {}
     for split in args.splits:
         split_path = Path(args.input_dataset) / split
-        ds = _load_and_resize(split_path, split, target_width)
+        ds = _load_and_resize(split_path, split, target_width, max_instances=per_split_cap.get(split))
         if ds is None:
             logger.error("Aborting — failed to load split '%s'.", split)
             sys.exit(1)
