@@ -7,7 +7,7 @@ import numpy as np
 
 def enclosing_box(bboxes: list) -> list:
     """Return [y_min, x_min, y_max, x_max] of the axis-aligned union rectangle."""
-    arr = np.array(bboxes, dtype=float)
+    arr = np.array(bboxes, dtype=float).reshape(-1, 4)
     return [arr[:, 0].min(), arr[:, 1].min(), arr[:, 2].max(), arr[:, 3].max()]
 
 
@@ -16,7 +16,12 @@ def bbox_iou(pred_bboxes: list, gt_bboxes: list) -> float:
     IoU between the enclosing rectangles of two multi-box entities.
     Both sides are reduced to their axis-aligned bounding rectangle first.
     Known simplification: gaps between boxes are counted as overlap area.
+    Returns 0.0 if either side has no valid bboxes.
     """
+    if not pred_bboxes and not gt_bboxes:
+        return 1.0
+    if not pred_bboxes or not gt_bboxes:
+        return 0.0
     pb = enclosing_box(pred_bboxes)
     gb = enclosing_box(gt_bboxes)
     inter_y1, inter_x1 = max(pb[0], gb[0]), max(pb[1], gb[1])
