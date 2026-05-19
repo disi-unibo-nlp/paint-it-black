@@ -31,7 +31,7 @@ Each annotation object has:
 - text: the annotated text content as it appears in the document
 - page_width, page_height: page dimensions in points (PDF units)
 - created: ISO 8601 timestamp
-- bboxes: list (of atleast 1 element) of bounding boxes — each bbox is a list of 4 floats [x_min, y_min, x_max, y_max]
+- bboxes: list (of atleast 1 element) of bounding boxes — each bbox is a list of 4 floats [y_min, x_min, y_max, x_max]
 normalized to [0, 1] relative to page dimensions. A single annotation can have multiple bounding boxes
 (e.g. for multi-line spans).
 """
