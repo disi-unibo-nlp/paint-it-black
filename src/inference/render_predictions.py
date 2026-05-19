@@ -22,7 +22,14 @@ import os
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
+
+
+def _get_font(size: int):
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -49,6 +56,8 @@ def _draw_box(
     rgb: tuple,
     label: str,
     label_above: bool,
+    scale: float = 1.0,
+    font=None,
 ) -> None:
     """Draw a single bbox with a label chip. bbox = [y_min, x_min, y_max, x_max] in [0,1]."""
     y_min, x_min, y_max, x_max = bbox
@@ -59,19 +68,20 @@ def _draw_box(
     x0, x1 = sorted([max(0, x0), min(w - 1, x1)])
     y0, y1 = sorted([max(0, y0), min(h - 1, y1)])
 
-    fill   = (*rgb, 35)
-    stroke = (*rgb, 200)
-    draw.rectangle([x0, y0, x1, y1], fill=fill, outline=stroke, width=2)
+    fill     = (*rgb, 35)
+    stroke   = (*rgb, 200)
+    stroke_w = max(2, int(2 * scale))
+    draw.rectangle([x0, y0, x1, y1], fill=fill, outline=stroke, width=stroke_w)
 
-    chip_h = 14
-    chip_w = len(label) * 6 + 6
+    chip_h = max(14, int(14 * scale))
+    chip_w = len(label) * max(6, int(6 * scale)) + int(6 * scale)
     if label_above:
         cy = max(0, y0 - chip_h)
     else:
         cy = min(h - chip_h, y1)
 
     draw.rectangle([x0, cy, x0 + chip_w, cy + chip_h], fill=(*rgb, 200))
-    draw.text((x0 + 3, cy + 1), label, fill="white")
+    draw.text((x0 + int(3 * scale), cy + int(2 * scale)), label, fill="white", font=font)
 
 
 def render_sample(
@@ -96,52 +106,20 @@ def render_sample(
     draw = ImageDraw.Draw(img, "RGBA")
     w, h = img.size
 
+    scale = max(1.0, w / 1000)
+    font  = _get_font(max(10, int(11 * scale)))
+
     for ann in gt_entities:
         label = ann.get("label", "?")
         for bbox in ann.get("bboxes", []):
-            _draw_box(draw, bbox, w, h, _GT_COLOR, label, label_above=True)
+            _draw_box(draw, bbox, w, h, _GT_COLOR, label, label_above=True, scale=scale, font=font)
 
     for ent in pred_entities:
         label = ent.get("label", "?")
         for bbox in ent.get("bboxes", []):
-            _draw_box(draw, bbox, w, h, _PRED_COLOR, label, label_above=False)
+            _draw_box(draw, bbox, w, h, _PRED_COLOR, label, label_above=False, scale=scale, font=font)
 
-    # ── Header strip ──────────────────────────────────────────────────────────
-    header_h = 22
-    parse_ok = sample_meta.get("parse_success", True)
-    header   = Image.new("RGB", (w, header_h), (20, 20, 40))
-    hdraw    = ImageDraw.Draw(header)
-
-    idx      = sample_meta.get("idx", "?")
-    source   = sample_meta.get("source_pdf", "?")
-    page     = sample_meta.get("page", "?")
-    total_p  = sample_meta.get("total_pages", "?")
-    dtype    = sample_meta.get("doc_type", "?")
-    n_gt     = len(gt_entities)
-    n_pred   = len(pred_entities)
-    status   = "" if parse_ok else "  [PARSE FAIL]"
-
-    text = (
-        f"[{idx:04d}]  {source}  p.{page}/{total_p}  ({dtype})"
-        f"  GT:{n_gt}  PRED:{n_pred}{status}"
-    )
-    hdraw.text((6, 4), text, fill=(200, 200, 220))
-
-    # ── Legend strip ──────────────────────────────────────────────────────────
-    legend_items = [("GT (ground truth)", _GT_COLOR), ("PRED (predicted)", _PRED_COLOR)]
-    legend_h     = 18 * len(legend_items)
-    legend       = Image.new("RGB", (w, legend_h), (30, 30, 30))
-    ldraw        = ImageDraw.Draw(legend)
-    for i, (lbl, rgb) in enumerate(legend_items):
-        y = i * 18 + 3
-        ldraw.rectangle([6, y, 18, y + 12], fill=rgb)
-        ldraw.text((24, y), lbl, fill="white")
-
-    out = Image.new("RGB", (w, header_h + h + legend_h))
-    out.paste(header, (0, 0))
-    out.paste(img,    (0, header_h))
-    out.paste(legend, (0, header_h + h))
-    return out
+    return img
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
@@ -220,8 +198,10 @@ def main():
         gt      = row.get("annotations", [])
         preds   = sample.get("predictions", [])
 
+        dpi      = image.info.get("dpi")
         rendered = render_sample(image, gt, preds, sample)
-        rendered.save(out_dir / f"{idx:04d}.png")
+        fname    = out_dir / f"{idx:04d}.png"
+        rendered.save(fname, dpi=dpi) if dpi else rendered.save(fname)
 
         # Accumulate raw output entry
         source   = sample.get("source_pdf", "?")

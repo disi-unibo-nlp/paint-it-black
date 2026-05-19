@@ -18,6 +18,13 @@ from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+
+def _get_font(size: int):
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
 # ── Label colours (mirrors annotation_app.html LABELS array) ──────────────────
 _PARENT_COLORS = {
     "NAME":          "#e74c3c",
@@ -41,12 +48,17 @@ def _color_for(label: str) -> str:
 
 # ── Rendering ─────────────────────────────────────────────────────────────────
 
-def render_row(row: dict, idx: int, total: int) -> Image.Image:
+def render_row(row: dict, idx: int = 0, total: int = 0) -> Image.Image:
     image = row["image"].copy().convert("RGB")
     draw  = ImageDraw.Draw(image, "RGBA")
     w, h  = image.size
 
-    seen_labels = []
+    scale   = max(1.0, w / 1000)
+    chip_h  = max(14, int(14 * scale))
+    char_w  = max(6,  int(6  * scale))
+    font    = _get_font(max(10, int(11 * scale)))
+    stroke_w = max(2, int(2 * scale))
+
     for ann in row["annotations"]:
         label  = ann["label"]
         color  = _color_for(label)
@@ -56,44 +68,15 @@ def render_row(row: dict, idx: int, total: int) -> Image.Image:
 
         for bbox in ann["bboxes"]:
             y_min, x_min, y_max, x_max = bbox
-            x0, y0 = x_min * w, y_min * h
-            x1, y1 = x_max * w, y_max * h
-            draw.rectangle([x0, y0, x1, y1], fill=fill, outline=stroke, width=2)
-            # Label chip above the box
-            draw.rectangle([x0, max(0, y0 - 14), x0 + len(label) * 6 + 6, max(14, y0)],
-                           fill=(*rgb, 200))
-            draw.text((x0 + 3, max(0, y0 - 13)), label, fill="white")
+            x0, y0 = int(x_min * w), int(y_min * h)
+            x1, y1 = int(x_max * w), int(y_max * h)
+            draw.rectangle([x0, y0, x1, y1], fill=fill, outline=stroke, width=stroke_w)
+            chip_w = len(label) * char_w + int(6 * scale)
+            cy = max(0, y0 - chip_h)
+            draw.rectangle([x0, cy, x0 + chip_w, cy + chip_h], fill=(*rgb, 200))
+            draw.text((x0 + int(3 * scale), cy + int(2 * scale)), label, fill="white", font=font)
 
-        if label not in seen_labels:
-            seen_labels.append(label)
-
-    # Header strip with document metadata
-    header_h = 22
-    header   = Image.new("RGB", (w, header_h), (20, 20, 40))
-    hdraw    = ImageDraw.Draw(header)
-    source   = row.get("source_pdf", "?")
-    page     = row.get("page", "?")
-    total_p  = row.get("total_pages", "?")
-    dtype    = row.get("doc_type", "?")
-    hdraw.text((6, 4), f"[{idx:04d}]  {source}  p.{page}/{total_p}  ({dtype})", fill=(200, 200, 220))
-
-    # Legend strip at the bottom
-    legend_h = 20 * len(seen_labels) if seen_labels else 0
-    legend   = Image.new("RGB", (w, legend_h), (30, 30, 30)) if legend_h else None
-    if legend:
-        ldraw = ImageDraw.Draw(legend)
-        for i, label in enumerate(seen_labels):
-            rgb = _hex_to_rgb(_color_for(label))
-            ldraw.rectangle([6, i * 20 + 4, 18, i * 20 + 16], fill=rgb)
-            ldraw.text((24, i * 20 + 4), label, fill="white")
-
-    combined = Image.new("RGB", (w, header_h + h + legend_h))
-    combined.paste(header, (0, 0))
-    combined.paste(image,  (0, header_h))
-    if legend:
-        combined.paste(legend, (0, header_h + h))
-
-    return combined
+    return image
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -134,9 +117,11 @@ def main():
 
     for idx in range(total):
         row   = ds[idx]
-        img   = render_row(row, idx, total)
-        fname = out_dir / f"{idx:04d}.png"
-        img.save(fname)
+        src_img = row["image"] if isinstance(row["image"], Image.Image) else Image.fromarray(row["image"])
+        dpi     = src_img.info.get("dpi")
+        img     = render_row(row, idx, total)
+        fname   = out_dir / f"{idx:04d}.png"
+        img.save(fname, dpi=dpi) if dpi else img.save(fname)
         if (idx + 1) % 10 == 0 or idx + 1 == total:
             print(f"  {idx + 1}/{total}")
 
