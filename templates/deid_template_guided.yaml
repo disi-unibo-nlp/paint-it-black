@@ -18,8 +18,8 @@ messages:
 
       Example output:
       [
-        {{"label": "NAME:PATIENT", "text": "Mario Rossi", "bboxes": [[120, 50, 140, 280]]}},
-        {{"label": "DATETIME", "text": "15/03/2024", "bboxes": [[220, 100, 240, 350]]}}
+        {{"bboxes": [[120, 50, 140, 280]], "label": "NAME:PATIENT", "text": "Mario Rossi"}},
+        {{"bboxes": [[220, 100, 240, 350]], "label": "DATETIME", "text": "15/03/2024"}}
       ]
 
   - role: user
