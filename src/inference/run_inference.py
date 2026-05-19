@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.utils import ConfigArgumentParser, init_logger, set_seed, make_output_dir
 from core.template_handler import TemplateHandler
 from core.llm_client import LLMClient
-from core.labels import load_labels
+from core.labels import load_labels, load_label_guidelines
 from inference.metrics import compute_metrics
 
 logger = logging.getLogger(__name__)
@@ -175,7 +175,8 @@ def _run(args) -> None:
     logger.info("Output directory: %s", out_dir)
 
     labels = load_labels()
-    handler = TemplateHandler.from_yaml(args.template, labels=labels)
+    guidelines = load_label_guidelines()
+    handler = TemplateHandler.from_yaml(args.template, labels=labels, label_guidelines=guidelines)
     logger.info("Loaded template from %s", args.template)
 
     json_schema = handler.structured_output_schema if args.guided_json else None

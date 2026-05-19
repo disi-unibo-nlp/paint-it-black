@@ -137,15 +137,24 @@ class TemplateHandler:
         self.structured_output_schema: Optional[dict] = structured_output_schema
 
     @classmethod
-    def from_yaml(cls, path: Union[str, Path], labels: Optional[list] = None) -> "TemplateHandler":
+    def from_yaml(
+        cls,
+        path: Union[str, Path],
+        labels: Optional[list] = None,
+        label_guidelines: Optional[list] = None,
+    ) -> "TemplateHandler":
         """
         Load a TemplateHandler from a YAML file.
 
         The YAML must have a "messages" key and optionally an "output_fields" key.
         See class docstring for the expected format.
 
-        If `labels` is provided, the placeholder `{labels}` in any string message
-        content is replaced at load time with the comma-separated label list.
+        If `labels` is provided, `{labels}` in string message content is replaced
+        with the comma-separated label list.
+
+        If `label_guidelines` is provided (list of (name, description) tuples),
+        `{labels_with_guidelines}` is replaced with a formatted bullet list:
+            - NAME: description
         """
         with open(path, "r") as f:
             data = yaml.safe_load(f)
@@ -157,6 +166,12 @@ class TemplateHandler:
             for msg in messages:
                 if isinstance(msg.get("content"), str):
                     msg["content"] = msg["content"].replace("{labels}", labels_str)
+
+        if label_guidelines:
+            guidelines_str = "\n".join(f"  - {name}: {desc}" for name, desc in label_guidelines)
+            for msg in messages:
+                if isinstance(msg.get("content"), str):
+                    msg["content"] = msg["content"].replace("{labels_with_guidelines}", guidelines_str)
 
         output_fields = []
         for fd in data.get("output_fields", []):

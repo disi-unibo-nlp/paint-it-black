@@ -6,26 +6,49 @@
 #   templates/deid_template.yaml is auto-injected at load time — no manual edit needed.
 
 labels:
-  - NAME:PATIENT
-  - NAME:STAFF
-  - NAME:ASSOCIATE
-  - NAME:FACILITY
-  - NAME:DEPARTMENT
-  - DATE_OF_BIRTH:UNDER_89
-  - DATE_OF_BIRTH:OVER_89
-  - DATETIME
-  - AGE:UNDER_89
-  - AGE:OVER_89
-  - ID:PATIENT_ID
-  - ID:DOCUMENT_ID
-  - ID:SPECIMEN_ID
-  - ID:STAFF_ID
-  - ID:DEVICE_ID
-  - ID:EXAM_ID
-  - ID:ADMISSION_ID
-  - CONTACT:PATIENT
-  - CONTACT:STAFF
-  - CONTACT:ASSOCIATE
-  - CONTACT:FACILITY
-  - ADDRESS:PATIENT
-  - ADDRESS:FACILITY
+  - name: NAME:PATIENT
+    description: Full name of the patient.
+  - name: NAME:STAFF
+    description: Name of a healthcare professional (doctor, nurse, technician, etc.).
+  - name: NAME:ASSOCIATE
+    description: Name of a non-staff person associated with the patient (e.g. family member, caregiver).
+  - name: NAME:FACILITY
+    description: Name of a hospital, clinic, or healthcare facility.
+  - name: NAME:DEPARTMENT
+    description: Name of a department, or ward within a facility.
+  - name: DATE_OF_BIRTH:UNDER_89
+    description: Date of birth of a patient aged 89 or younger.
+  - name: DATE_OF_BIRTH:OVER_89
+    description: Date of birth of a patient aged over 89 (treated as more identifying under HIPAA).
+  - name: DATETIME
+    description: Any date or date-time value other than date of birth (visit dates, test dates, timestamps).
+  - name: AGE:UNDER_89
+    description: Explicit age of a patient 89 years old or younger.
+  - name: AGE:OVER_89
+    description: Explicit age of a patient over 89 years old.
+  - name: ID:PATIENT_ID
+    description: Patient identifier such as a medical record number.
+  - name: ID:DOCUMENT_ID
+    description: Document or report identifier.
+  - name: ID:SPECIMEN_ID
+    description: Specimen or biological sample identifier.
+  - name: ID:STAFF_ID
+    description: Staff member identifier or medical license number.
+  - name: ID:DEVICE_ID
+    description: Medical device identifier or serial number.
+  - name: ID:EXAM_ID
+    description: Examination or procedure identifier.
+  - name: ID:ADMISSION_ID
+    description: Hospital admission or encounter identifier.
+  - name: CONTACT:PATIENT
+    description: Contact information for the patient (phone number, email, fax).
+  - name: CONTACT:STAFF
+    description: Contact information for a staff member.
+  - name: CONTACT:ASSOCIATE
+    description: Contact information for a non-staff associate of the patient.
+  - name: CONTACT:FACILITY
+    description: Contact information for a healthcare facility, such as phone number, email, or fax.
+  - name: ADDRESS:PATIENT
+    description: Physical address of the patient.
+  - name: ADDRESS:FACILITY
+    description: Physical address of a healthcare facility.

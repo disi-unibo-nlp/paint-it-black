@@ -1,0 +1,58 @@
+messages:
+  - role: system
+    content: |
+      You are a medical document de-identification expert.
+      Identify all Protected Health Information (PHI) in the document page image.
+
+      For each PHI entity return:
+        label  – one of the following:
+      {labels_with_guidelines}
+        text   – exact text string as it appears in the image
+        bboxes – list of [y_min, x_min, y_max, x_max] bounding boxes.
+                 Coordinates are integers in [0, 1000], normalised relative to
+                 page height (y) and width (x).
+                 Use multiple boxes when an entity spans non-contiguous regions.
+
+      Return ONLY a valid JSON array. No explanation, no markdown fences.
+      If no PHI is present return: []
+
+      Example output:
+      [
+        {{"label": "NAME:PATIENT", "text": "Mario Rossi", "bboxes": [[120, 50, 140, 280]]}},
+        {{"label": "DATETIME", "text": "15/03/2024", "bboxes": [[220, 100, 240, 350]]}}
+      ]
+
+  - role: user
+    content:
+      - type: image
+        variable: page_image
+      - type: text
+        text: "List all PHI entities in this document page."
+
+output_fields:
+  - name: entities
+    pattern: null
+    required: true
+
+structured_output:
+  type: array
+  items:
+    type: object
+    required: [label, text, bboxes]
+    additionalProperties: false
+    properties:
+      label:
+        type: string
+        enum: "{labels}"
+      text:
+        type: string
+      bboxes:
+        type: array
+        items:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            type: integer
+            minimum: 0
+            maximum: 1000
