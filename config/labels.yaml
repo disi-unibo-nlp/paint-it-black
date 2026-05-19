@@ -7,48 +7,48 @@
 
 labels:
   - name: NAME:PATIENT
-    description: Full name of the patient.
+    description: Name of the patient; exclude honorifics (Mr., Mrs.) and annotate only the name token. Partial identifiers (isolated surname, period-separated initials such as M.R.) are included.
   - name: NAME:STAFF
-    description: Name of a healthcare professional (doctor, nurse, technician, etc.).
+    description: Name of a medical staff member (physicians, nurses, technicians, etc.); exclude titles (Dr., Prof.) and annotate only the name token. Partial identifiers included.
   - name: NAME:ASSOCIATE
-    description: Name of a non-staff person associated with the patient (e.g. family member, caregiver).
+    description: Name of a non-staff person associated with the patient (family member, caregiver, etc.); exclude honorifics and annotate only the name token. Partial identifiers included.
   - name: NAME:FACILITY
-    description: Name of a hospital, clinic, or healthcare facility.
+    description: Name of a hospital, clinic, laboratory, or healthcare facility.
   - name: NAME:DEPARTMENT
-    description: Name of a department, or ward within a facility.
+    description: Name of a department, ward, or unit within a facility.
   - name: DATE_OF_BIRTH:UNDER_89
     description: Date of birth of a patient aged 89 or younger.
   - name: DATE_OF_BIRTH:OVER_89
-    description: Date of birth of a patient aged over 89 (treated as more identifying under HIPAA).
+    description: Date of birth of a patient aged over 89; directly identifying under HIPAA Safe Harbor, on a par with names and addresses.
   - name: DATETIME
-    description: Any date or date-time value other than date of birth (visit dates, test dates, timestamps).
+    description: Any date or date-time value other than date of birth, including isolated years in narrative prose.
   - name: AGE:UNDER_89
     description: Explicit age of a patient 89 years old or younger.
   - name: AGE:OVER_89
-    description: Explicit age of a patient over 89 years old.
+    description: Explicit age of a patient over 89; directly identifying under HIPAA Safe Harbor, on a par with names and addresses.
   - name: ID:PATIENT_ID
-    description: Patient identifier such as a medical record number.
+    description: Static per-patient identifier such as a medical record number.
   - name: ID:DOCUMENT_ID
-    description: Document or report identifier.
+    description: Document or report identifier (e.g. transcription code).
   - name: ID:SPECIMEN_ID
     description: Specimen or biological sample identifier.
   - name: ID:STAFF_ID
-    description: Staff member identifier or medical license number.
+    description: Staff member identifier (badge number, employee ID, medical license number, etc.).
   - name: ID:DEVICE_ID
     description: Medical device identifier or serial number.
   - name: ID:EXAM_ID
     description: Examination or procedure identifier.
   - name: ID:ADMISSION_ID
-    description: Hospital admission or encounter identifier.
+    description: Episode-specific hospitalization or encounter identifier.
   - name: CONTACT:PATIENT
-    description: Contact information for the patient (phone number, email, fax).
+    description: Contact information (phone, fax, email) of the patient.
   - name: CONTACT:STAFF
-    description: Contact information for a staff member.
+    description: Personal contact information explicitly attributed to a specific staff member (e.g. a doctor's direct phone number); use only when clearly personal, not institutional.
   - name: CONTACT:ASSOCIATE
-    description: Contact information for a non-staff associate of the patient.
+    description: Contact information of a non-staff associate of the patient.
   - name: CONTACT:FACILITY
-    description: Contact information for a healthcare facility, such as phone number, email, or fax.
+    description: Contact information (phone, fax, email) of the facility or department; facility and department numbers are merged into this category.
   - name: ADDRESS:PATIENT
-    description: Physical address of the patient.
+    description: Geographic address of the patient, from street level to city and country.
   - name: ADDRESS:FACILITY
-    description: Physical address of a healthcare facility.
+    description: Geographic address of a healthcare facility, from street level to city and country.
