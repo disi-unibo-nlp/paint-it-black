@@ -8,6 +8,6 @@ HUB_DATASET=disi-unibo-nlp/paint-it-black
 ./scripts/run_cont.sh python3 src/dataprep/push_to_hub.py \
     --input_dataset $INPUT_DATASET \
     --hub_dataset   $HUB_DATASET \
-    --splits base medium hard \
+    --splits medium \
     --target_dpi 144 \
     --private

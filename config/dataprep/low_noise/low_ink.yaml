@@ -15,14 +15,14 @@ dpi: 300
 # ── showcased ─────────────────────────────────────────────────────────────────
 low_ink_p: 1.0
 low_ink_random_lines: 1
-low_ink_random_lines_count_range: [1, 4]
+low_ink_random_lines_count_range: [3, 8]
 low_ink_random_lines_consistent: 0
-low_ink_random_lines_noise_prob: 0.4
+low_ink_random_lines_noise_prob: 0.5
 low_ink_periodic_lines: 1
-low_ink_periodic_lines_count_range: [1, 3]
+low_ink_periodic_lines_count_range: [2,43]
 low_ink_periodic_lines_period_range: [5, 12]
 low_ink_periodic_lines_consistent: 0
-low_ink_periodic_lines_noise_prob: 0.4
+low_ink_periodic_lines_noise_prob: 0.5
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 ink_bleed_p: 0.0
