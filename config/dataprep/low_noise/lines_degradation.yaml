@@ -15,7 +15,7 @@ dpi: 300
 lines_degradation_p: 1.0
 lines_degradation_gradient_range: [32, 255]
 lines_degradation_gradient_direction: [0, 2]
-lines_degradation_split_probability: [0.2, 0.6]
+lines_degradation_split_probability: [0.2, 0.4]
 lines_degradation_replacement_value: [250, 255]
 lines_degradation_replacement_probability: [0.4, 0.5]
 lines_degradation_min_length: [30, 40]
