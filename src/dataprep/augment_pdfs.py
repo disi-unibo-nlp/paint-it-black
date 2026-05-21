@@ -89,6 +89,21 @@ def _patched_generate_noise_clusters(self, image, n_clusters=(200, 200), n_sampl
     return _orig_generate_noise_clusters(self, image, n_clusters, n_samples, std_range)
 _ig.InkGenerator.generate_noise_clusters = _patched_generate_noise_clusters
 
+# Augraphy bug: NoiseGenerator.generate_worley_noise uses sorted() inside nb.prange,
+# which breaks numba parallel type inference on this numba version (AssertionError in
+# typeinfer.py). Remap noise_type 4 (worley) to 1 (blobs) in generate_mask_main so the
+# broken JIT function is never called. Random selection (-1) still yields 4 types instead
+# of 5, which is acceptable.
+from augraphy.utilities import noisegenerator as _ng
+_orig_generate_mask_main = _ng.NoiseGenerator.generate_mask_main
+def _patched_generate_mask_main(self, noise_type, noise_side, noise_value, noise_background,
+                                noise_sparsity, noise_concentration, xsize, ysize):
+    if noise_type == 4:
+        noise_type = 1
+    return _orig_generate_mask_main(self, noise_type, noise_side, noise_value, noise_background,
+                                    noise_sparsity, noise_concentration, xsize, ysize)
+_ng.NoiseGenerator.generate_mask_main = _patched_generate_mask_main
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
