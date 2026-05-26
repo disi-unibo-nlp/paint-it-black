@@ -105,7 +105,7 @@ def _greedy_match(pred_entities, gt_entities, score_fn, threshold):
 def match_entities_by_bbox(pred_entities, gt_entities, iou_threshold=0.5):
     """Match entities by label + bbox IoU > iou_threshold."""
     return _greedy_match(pred_entities, gt_entities,
-                         lambda p, g: bbox_iou(p["bboxes"], g["bboxes"]),
+                         lambda p, g: bbox_iou(p.get("bbox_2d", []), g.get("bboxes", [])),
                          iou_threshold)
 
 
@@ -123,6 +123,20 @@ def match_entities_by_exact_text(pred_entities, gt_entities):
         lambda p, g: 1.0 if p["text"].strip().lower() == g["text"].strip().lower() else 0.0,
         threshold=0.5,
     )
+
+
+def match_entities_joint(pred_entities, gt_entities, iou_threshold=0.5):
+    """
+    Match entities requiring label + exact text match (case-insensitive) AND
+    bbox IoU > iou_threshold simultaneously.  Score is the IoU value so the
+    greedy matcher favours better-localised pairs among exact-text ties.
+    """
+    def _score(p, g):
+        exact = p["text"].strip().lower() == g["text"].strip().lower()
+        iou   = bbox_iou(p.get("bbox_2d", []), g.get("bboxes", []))
+        return iou if exact and iou > iou_threshold else 0.0
+
+    return _greedy_match(pred_entities, gt_entities, _score, threshold=0.0)
 
 
 # ── PRF helpers ───────────────────────────────────────────────────────────────
@@ -164,6 +178,7 @@ def compute_metrics(
     iou_thresholds: list = None,
     label_set: list = None,
     format_compliance: float = None,
+    parse_successes: list = None,
 ) -> dict:
     """
     Compute the full benchmark metric suite.
@@ -175,6 +190,9 @@ def compute_metrics(
         iou_thresholds:  IoU thresholds for end-to-end F1 (default [0.25, 0.5, 0.75]).
         label_set:       All expected label names. Inferred from data if None.
         format_compliance: Pre-computed fraction of parseable outputs (0–1), or None.
+        parse_successes: Optional bool list aligned with predictions. Samples where
+                         parse_successes[i] is False are excluded from all metric
+                         accumulators (format_compliance is unaffected).
 
     Returns:
         Nested dict with top-level keys:
@@ -186,12 +204,21 @@ def compute_metrics(
 
     assert len(all_predictions) == len(all_gt), "predictions and GT must have the same length"
 
+    if parse_successes is not None:
+        pairs = [(p, g) for p, g, ok in zip(all_predictions, all_gt, parse_successes) if ok]
+        if not pairs:
+            raise ValueError("No successfully parsed samples to evaluate.")
+        all_predictions, all_gt = map(list, zip(*pairs))
+
     all_labels = label_set or sorted(
         {e["label"] for sample in all_gt for e in sample}
         | {e["label"] for sample in all_predictions for e in sample}
     )
 
     # Accumulators
+    joint_tp = 0
+    total_gt_entities = 0
+
     det_tp = det_fp = det_fn = 0
     det_per_label = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
 
@@ -262,7 +289,7 @@ def compute_metrics(
         # ── IoU scores at 0.5 (mean_iou) + label confusion ───────────────────
         matched_05, unmatched_pe_05, _ = match_entities_by_bbox(preds, gts, 0.5)
         for p, g in matched_05:
-            iou_scores.append(bbox_iou(p["bboxes"], g["bboxes"]))
+            iou_scores.append(bbox_iou(p.get("bbox_2d", []), g.get("bboxes", [])))
             spatial_char_f1_scores.append(text_char_f1(p["text"], g["text"]))
             if p["text"].strip().lower() == g["text"].strip().lower():
                 spatial_exact_matches += 1
@@ -270,7 +297,7 @@ def compute_metrics(
         for p in unmatched_pe_05:
             best_iou, best_label = 0.0, None
             for g in gts:
-                iou = bbox_iou(p["bboxes"], g["bboxes"])
+                iou = bbox_iou(p.get("bbox_2d", []), g.get("bboxes", []))
                 if iou > best_iou:
                     best_iou, best_label = iou, g["label"]
             if best_label and best_iou > 0.3:
@@ -279,10 +306,15 @@ def compute_metrics(
         # ── Unconditional IoU: best same-label pred IoU per GT entity ─────────
         for g in gts:
             best = max(
-                (bbox_iou(p["bboxes"], g["bboxes"]) for p in preds if p["label"] == g["label"]),
+                (bbox_iou(p.get("bbox_2d", []), g.get("bboxes", [])) for p in preds if p["label"] == g["label"]),
                 default=0.0,
             )
             unconditional_iou_scores.append(best)
+
+        # ── Joint pass: label + span + bbox simultaneously ────────────────────
+        matched_joint, _, _ = match_entities_joint(preds, gts)
+        joint_tp += len(matched_joint)
+        total_gt_entities += len(gts)
 
     # ── Aggregate detection metrics ───────────────────────────────────────────
     det_micro = _prf(det_tp, det_fp, det_fn)
@@ -330,6 +362,7 @@ def compute_metrics(
         miss_per_label[label] = fn / (tp + fn) if (tp + fn) > 0 else 0.0
 
     # ── Derived scalars ───────────────────────────────────────────────────────
+    _pass_rate         = joint_tp / total_gt_entities             if total_gt_entities > 0    else 0.0
     _char_f1           = float(np.mean(char_f1_scores))          if char_f1_scores           else 0.0
     _edit_dist         = float(np.mean(edit_dist_scores))         if edit_dist_scores         else 0.0
     _exact_rate        = exact_matches / len(char_f1_scores)      if char_f1_scores           else 0.0
@@ -350,6 +383,7 @@ def compute_metrics(
             "exact_match_rate":       _exact_rate,
             "spatial_char_f1":        _spatial_char_f1,
             "spatial_exact_match_rate": _spatial_exact,
+            "pass_rate":              _pass_rate,
             "hallucination_rate":     hall_overall,
             "miss_rate":              miss_overall,
             "format_compliance":      format_compliance,

@@ -38,7 +38,11 @@ class LLMClient:
         self._enable_thinking = enable_thinking
         self._json_schema = json_schema
 
-    def complete(self, messages: list[dict]) -> str:
+    def complete(self, messages: list[dict]) -> tuple[str, dict]:
+        """
+        Returns (content, metadata) where metadata contains usage, reasoning,
+        finish_reason, and request id for inspection and debugging.
+        """
         kwargs: dict = dict(
             model=self.model,
             messages=messages,
@@ -69,7 +73,24 @@ class LLMClient:
         for attempt in range(self.max_retries):
             try:
                 response = self._client.chat.completions.create(**kwargs)
-                return response.choices[0].message.content
+                choice = response.choices[0]
+                content = choice.message.content
+                metadata = {
+                    "id":               response.id,
+                    "model":            response.model,
+                    "finish_reason":    choice.finish_reason,
+                    "reasoning":        (
+                                            getattr(choice.message, "reasoning", None)
+                                            or (choice.message.model_extra or {}).get("reasoning")
+                                        ),
+                    "content":          content,
+                    "usage": {
+                        "prompt_tokens":     getattr(response.usage, "prompt_tokens", None),
+                        "completion_tokens": getattr(response.usage, "completion_tokens", None),
+                        "total_tokens":      getattr(response.usage, "total_tokens", None),
+                    } if response.usage else {},
+                }
+                return content, metadata
             except Exception as exc:
                 last_exc = exc
                 wait = 2 ** attempt

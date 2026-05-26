@@ -22,13 +22,13 @@ batch_size: 8
 max_retries: 3
 # Qwen3 thinking-mode recommended values (https://huggingface.co/Qwen/Qwen3-8B)
 # DO NOT set temperature=0 for thinking models — causes endless repetition.
-temperature: 0.6
-top_p: 0.95
-top_k: 20
+#temperature: 0.6
+#top_p: 0.95
+#top_k: 20
 enable_thinking: true
 
 # Structured outputs
-guided_json: false
+guided_json: true
 
 # Evaluation
 iou_thresholds: [0.25, 0.5, 0.75]

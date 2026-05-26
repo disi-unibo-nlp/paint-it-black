@@ -31,6 +31,9 @@ def _parse_json_output(text: str) -> tuple[list, bool]:
     # everything before it is the thinking trace, so drop it all.
     if "</think>" in text:
         text = text[text.index("</think>") + len("</think>"):]
+    # MedGemma thinking: <unused94>thought\n...<unused95>response
+    if "<unused95>" in text:
+        text = text[text.index("<unused95>") + len("<unused95>"):]
     text = text.strip()
     m = _FENCE_RE.search(text)
     cleaned = m.group(1) if m else text.strip()
@@ -41,6 +44,19 @@ def _parse_json_output(text: str) -> tuple[list, bool]:
         logger.warning("Model output parsed as JSON but is not a list: %s", type(result))
         return [], False
     except json.JSONDecodeError as exc:
+        # Fallback for Gemma 4: when vLLM's gemma4 reasoning parser does not
+        # extract thinking into reasoning_content the trace is prepended to the
+        # JSON in content.  Try every '[' from last to first until we find one
+        # that yields a valid JSON list (the array can appear inline without a
+        # preceding newline, e.g. "**Final JSON construction.**[").
+        positions = [m.start() for m in re.finditer(r"\[", cleaned)]
+        for pos in reversed(positions):
+            try:
+                result = json.loads(cleaned[pos:])
+                if isinstance(result, list):
+                    return result, True
+            except json.JSONDecodeError:
+                continue
         logger.warning("Failed to parse model output as JSON: %s\nOutput: %.200s", exc, text)
         return [], False
 
@@ -53,15 +69,15 @@ def _rescale_entities(entities: list) -> list:
     leaves them unchanged, so it is safe to call unconditionally.
     """
     max_coord = max(
-        (c for ent in entities for bbox in ent.get("bboxes", []) for c in bbox),
+        (c for ent in entities for bbox in ent.get("bbox_2d", []) for c in bbox),
         default=0.0,
     )
     scale = 1000.0 if max_coord > 1.0 else 1.0
 
     for ent in entities:
-        ent["bboxes"] = [
+        ent["bbox_2d"] = [
             [max(0.0, min(1.0, c / scale)) for c in bbox]
-            for bbox in ent.get("bboxes", [])
+            for bbox in ent.get("bbox_2d", [])
             if isinstance(bbox, (list, tuple)) and len(bbox) == 4
         ]
         if "text" not in ent:
@@ -130,12 +146,12 @@ def _build_parser() -> ConfigArgumentParser:
 
 
 def _process_sample(idx: int, row: dict, handler, client, max_retries: int = 0) -> dict:
-    raw, entities, success = "", [], False
+    raw, completion, entities, success = "", {}, [], False
     max_attempts = max(1, max_retries)
     for attempt in range(max_attempts):
         try:
             messages = handler.format(page_image=row["image"])
-            raw = client.complete(messages)
+            raw, completion = client.complete(messages)
             entities, success = _parse_json_output(raw)
             if success:
                 entities = _rescale_entities(entities)
@@ -144,9 +160,8 @@ def _process_sample(idx: int, row: dict, handler, client, max_retries: int = 0) 
                 logger.warning("Parse failed on sample %d (attempt %d/%d), retrying...",
                                idx, attempt + 1, max_attempts)
         except Exception as exc:
-            logger.error("Error on sample %d: %r", idx, exc)
-            raw, entities, success = "", [], False
-            break
+            logger.error("Error on sample %d (attempt %d/%d): %r", idx, attempt + 1, max_attempts, exc)
+            raw, completion, entities, success = "", {}, [], False
     return {
         "idx":          idx,
         "page":         row.get("page"),
@@ -156,6 +171,7 @@ def _process_sample(idx: int, row: dict, handler, client, max_retries: int = 0) 
         "annotations":  row.get("annotations", []),
         "predictions":  entities,
         "raw_output":   raw,
+        "completion":   completion,
         "parse_success": success,
     }
 
@@ -224,7 +240,11 @@ def _run(args) -> None:
     per_sample_results = [None] * n
     all_predictions    = [None] * n
     all_gt             = [None] * n
-    parse_successes    = 0
+    all_completions    = [None] * n
+    parse_successes    = [False] * n
+    n_parse_ok         = 0
+
+    completions_path = out_dir / "raw_completions.jsonl"
 
     with ThreadPoolExecutor(max_workers=args.batch_size) as executor:
         for batch_start in range(0, n, args.batch_size):
@@ -237,17 +257,29 @@ def _run(args) -> None:
                 executor.submit(_process_sample, batch_start + i, row, handler, client, args.max_retries): batch_start + i
                 for i, row in enumerate(batch)
             }
+            batch_completions = []
             for future in as_completed(futures):
                 result = future.result()
                 idx = result["idx"]
-                per_sample_results[idx] = {k: v for k, v in result.items() if k != "annotations"}
+                per_sample_results[idx] = {k: v for k, v in result.items()
+                                           if k not in ("annotations", "completion")}
                 all_predictions[idx]    = result["predictions"]
                 all_gt[idx]             = result["annotations"]
+                entry = {"idx": idx, **result.get("completion", {})}
+                all_completions[idx]    = entry
+                batch_completions.append(entry)
+                parse_successes[idx] = bool(result["parse_success"])
                 if result["parse_success"]:
-                    parse_successes += 1
+                    n_parse_ok += 1
 
-    format_compliance = parse_successes / len(ds) if len(ds) > 0 else 0.0
-    logger.info("Format compliance: %.1f%%", format_compliance * 100)
+            # Flush this batch to disk immediately
+            with completions_path.open("a") as f:
+                for entry in sorted(batch_completions, key=lambda e: e["idx"]):
+                    f.write(json.dumps(entry) + "\n")
+
+    format_compliance = n_parse_ok / len(ds) if len(ds) > 0 else 0.0
+    logger.info("Format compliance: %.1f%%  (%d/%d samples)",
+                format_compliance * 100, n_parse_ok, len(ds))
 
     metrics = compute_metrics(
         all_predictions=all_predictions,
@@ -255,6 +287,7 @@ def _run(args) -> None:
         iou_thresholds=args.iou_thresholds,
         label_set=labels,
         format_compliance=format_compliance,
+        parse_successes=parse_successes,
     )
 
     _log_metrics_summary(metrics)
@@ -268,6 +301,8 @@ def _run(args) -> None:
     results_path = out_dir / "results.json"
     results_path.write_text(json.dumps(output, indent=2))
     logger.info("Results saved to %s", results_path)
+
+    logger.info("Raw completions saved to %s", completions_path)
 
 
 def _log_metrics_summary(metrics: dict) -> None:

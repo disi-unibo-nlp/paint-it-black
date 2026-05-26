@@ -1,0 +1,40 @@
+run_name: inference_run
+log_level: INFO
+seed: 42
+
+# Dataset
+input_dataset: data/test_ds
+input_split: base
+output_dir: output/inference
+
+# Prompt template — InternVL thinking protocol in system; task in user message
+template: templates/deid_template_internvl.yaml
+
+# Backend — run_vllm_inference.sh sets base_url automatically;
+# set manually here only when connecting to an already-running server.
+backend: vllm
+model: OpenGVLab/InternVL3_5-14B
+base_url: http://localhost:8000/v1
+api_key: EMPTY
+max_new_tokens: 16384
+timeout: 600
+batch_size: 8
+max_retries: 3
+
+# Recommended sampling params for InternVL thinking mode
+temperature: 0.6
+top_p: 0.95
+
+# Thinking is triggered by the system prompt (<think>...</think> tags);
+# stripped by _parse_json_output before JSON extraction.
+enable_thinking: false
+
+# Structured outputs disabled: thinking output precedes the JSON answer,
+# which breaks schema enforcement at the vLLM level.
+guided_json: false
+
+# Evaluation
+iou_thresholds: [0.25, 0.5, 0.75]
+
+# Tracking
+wandb: true
