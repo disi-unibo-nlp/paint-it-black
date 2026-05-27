@@ -8,8 +8,7 @@ A benchmark pipeline for evaluating multimodal large language models on the task
 2. **Dataset building** — convert annotated PDFs into a HuggingFace `Dataset` with image + label columns.
 3. **Analysis** — compute comprehensive statistics on dataset composition and label distribution.
 4. **Augmentation** — simulate realistic hospital scan degradation (fax, stains, noise, skew, …) to create difficulty levels.
-5. **Review** — Jupyter notebook for visual QA and rejection marking of augmented samples.
-6. **Inference** — run any OpenAI-compatible vision-language model on each document page, extract predicted PHI entities, and compute a comprehensive suite of benchmark metrics.
+5. **Inference** — run any OpenAI-compatible vision-language model on each document page, extract predicted PHI entities, and compute a comprehensive suite of benchmark metrics.
 
 ---
 
@@ -21,8 +20,11 @@ multimodal-deid/
 │   ├── labels.yaml             # Canonical PHI label list — source of truth for the project
 │   ├── dataprep/               # Augmentation configs (presets + per-augmentation examples)
 │   └── inference/
-│       ├── base.yaml           # Default inference config (local VLLM + thinking model)
-│       └── openai.yaml         # Remote OpenAI backend config
+│       ├── base.yaml           # Default inference config (local VLLM + Qwen3 thinking model)
+│       ├── openai.yaml         # Remote OpenAI backend config
+│       ├── gemma4.yaml         # Gemma 4 preset (reasoning parser + custom chat template)
+│       ├── internvl.yaml       # InternVL3 preset (thinking via system prompt)
+│       └── medgemma.yaml       # MedGemma preset (thinking via system instruction)
 ├── data/                       # Not tracked — populated by the user
 ├── docker/
 │   ├── Dockerfile              # Based on vllm/vllm-openai; adds project deps
@@ -37,26 +39,27 @@ multimodal-deid/
 │   ├── augment_tuning.sh       # Run all augmentation example configs for visual tuning
 │   ├── load_annotations.sh     # Build base split from annotations and push to HF Hub
 │   ├── push_to_hub.sh          # Resize all splits to target DPI and push to HF Hub
-│   ├── quick_eval.sh           # Run inference on a small subset + render predictions
+│   ├── quick_eval.sh           # Run inference on a small subset + render predictions (Docker)
+│   ├── quick_eval_bsub.sh      # Same as quick_eval.sh but for LSF cluster (no Docker)
 │   ├── render_results.sh       # Render bounding-box predictions from a results.json
 │   ├── render_split.sh         # Render all pages of a dataset split with GT boxes
 │   ├── resample_hard.sh        # Re-augment specific rows of the hard split
-│   └── run_inference.sh        # Benchmark inference across splits
+│   └── run_all_splits_bsub.sh  # Run all three splits in parallel on the LSF cluster
 ├── migrate_annotations.py      # One-shot migration script for label renames
 ├── output/                     # Augmented PNGs and inference results (not tracked)
 ├── scripts/
-│   ├── build_image_3090.sh     # Build Docker image for RTX 3090 (CUDA 11.x)
-│   ├── build_image_5090.sh     # Build Docker image for RTX 5090 (CUDA 12.x)
-│   ├── run_cont.sh             # Run any command inside the container
-│   ├── run_job.sh              # SLURM HPC submission wrapper
-│   └── run_vllm_inference.sh   # Start VLLM serve + inference in one container
+│   ├── build_image_3090.sh             # Build Docker image for RTX 3090 (CUDA 11.x)
+│   ├── build_image_5090.sh             # Build Docker image for RTX 5090 (CUDA 12.x)
+│   ├── run_cont.sh                     # Run any command inside the container
+│   ├── run_job.sh                      # SLURM HPC submission wrapper
+│   ├── run_vllm_inference.sh           # Start VLLM serve + inference in one container (Docker)
+│   └── run_vllm_inference_bsub.sh      # Submit VLLM serve via LSF bsub + run inference locally
 ├── src/
 │   ├── analysis/
 │   │   ├── analyze_dataset.py           # Dataset statistics → markdown report
-│   │   ├── render_dataset.py            # Render dataset pages with bounding boxes
-│   │   └── review_augmentations.ipynb   # Jupyter QA notebook
+│   │   └── render_dataset.py            # Render dataset pages with bounding boxes
 │   ├── core/
-│   │   ├── labels.py           # load_labels() — reads config/labels.yaml
+│   │   ├── labels.py           # load_labels() / load_label_guidelines() — reads config/labels.yaml
 │   │   ├── llm_client.py       # OpenAI-compatible client with retry logic
 │   │   ├── template_handler.py # Prompt template loader + output parser (multimodal-aware)
 │   │   └── utils.py            # ConfigArgumentParser, logging, seed, output dir helpers
@@ -74,10 +77,14 @@ multimodal-deid/
 │       ├── test_augment_dataset_hf.py
 │       ├── test_augment_page_sampling.py
 │       ├── test_llm_client.py
-│       └── test_metrics.py
+│       ├── test_metrics.py
+│       ├── test_render_predictions.py
+│       └── test_run_inference.py
 └── templates/
-    ├── deid_template.yaml      # Multimodal prompt template for de-identification
-    └── placeholder_template.yaml
+    ├── deid_template.yaml              # Default multimodal PHI prompt template
+    ├── deid_template_internvl.yaml     # InternVL3 variant (thinking via system prompt)
+    ├── deid_template_medgemma.yaml     # MedGemma variant (thinking via system instruction)
+    └── gemma4_chat_template.jinja      # Custom chat template for Gemma 4 thinking mode
 ```
 
 ---
@@ -124,6 +131,8 @@ WANDB_PROJECT=multimodal-deid  # Optional — W&B project name
 
 `HF_HOME` must point to an existing (or creatable) directory. On first run it will be populated with downloaded model weights. `run_vllm_inference.sh` mounts it into the container so models only need to be downloaded once.
 
+For the LSF/bsub cluster workflow, `run_vllm_inference_bsub.sh` instead reads `HF_HUB_CACHE` from `.env` (the standard HuggingFace Hub cache path on the cluster).
+
 ---
 
 ## Running the Container
@@ -137,11 +146,6 @@ All commands run from the **project root**.
 # Run a single command
 ./scripts/run_cont.sh python3 src/dataprep/build_dataset.py --help
 
-# Start Jupyter notebook server on port 8888 (VS Code Remote SSH: connect via Existing Jupyter Server)
-./scripts/run_cont.sh -j
-
-# Jupyter on a custom port
-./scripts/run_cont.sh -j 8899
 ```
 
 `run_cont.sh` uses `--network host` so the container can reach host services
@@ -164,6 +168,8 @@ Labels follow a `PARENT:SUBLABEL` convention. Current label set:
 | **ID** | `ID:PATIENT_ID`, `ID:DOCUMENT_ID`, `ID:SPECIMEN_ID`, `ID:STAFF_ID`, `ID:DEVICE_ID`, `ID:EXAM_ID`, `ID:ADMISSION_ID` |
 | **CONTACT** | `CONTACT:PATIENT`, `CONTACT:STAFF`, `CONTACT:ASSOCIATE`, `CONTACT:FACILITY` |
 | **ADDRESS** | `ADDRESS:PATIENT`, `ADDRESS:FACILITY` |
+
+Each label also has a one-line `description` field in `config/labels.yaml`. The `{labels_with_guidelines}` template placeholder (used by the default template) injects these descriptions as a bullet list into the prompt, giving the model concise annotation guidance per label type. The simpler `{labels}` placeholder remains available for a comma-separated list without descriptions.
 
 When adding or renaming labels: edit `config/labels.yaml`, then update `src/dataprep/annotation_app.html` (the `LABELS` array with its color/size metadata). The prompt template injects labels automatically at load time.
 
@@ -273,24 +279,77 @@ Or run both splits at once:
 ./experiments/augment_split.sh
 ```
 
-### 5 — Review Augmented Samples
-
-Start Jupyter and open the notebook:
-```bash
-./scripts/run_cont.sh -j
-# In VS Code: Kernel → Existing Jupyter Server → http://localhost:8888
-# Open: src/analysis/review_augmentations.ipynb
-```
-
-The notebook loads a dataset split, displays each page image with colour-coded bounding
-boxes, and lets you navigate and mark samples as rejected. State is saved to
-`data/<split>/review.json` and can be resumed across sessions.
-
 ---
 
 ## Inference & Evaluation
 
-### Quick Iteration (`quick_eval.sh`)
+### Inference Configs
+
+Config files under `config/inference/` cover the tested model families. All flags can be overridden on the CLI.
+
+| Config | Model family | Key settings |
+|---|---|---|
+| `base.yaml` | Qwen3 VL (thinking) | `enable_thinking: true`, `guided_json: false` |
+| `openai.yaml` | Remote OpenAI / compatible API | `backend: openai` |
+| `gemma4.yaml` | Gemma 4 | `reasoning_parser gemma4`, custom chat template, `guided_json: false` |
+| `internvl.yaml` | InternVL3 | Thinking via system prompt, `temperature: 0.6` |
+| `medgemma.yaml` | MedGemma | Thinking via system instruction, `guided_json: false` |
+
+### Prompt Templates
+
+Templates live in `templates/` and are YAML files loaded by `TemplateHandler`. Content
+fields can be strings (text-only) or lists of typed blocks for multimodal messages:
+
+```yaml
+messages:
+  - role: system
+    content: "You are a de-identification expert..."
+  - role: user
+    content:
+      - type: image
+        variable: page_image     # PIL Image passed from the inference loop → base64 JPEG
+      - type: text
+        text: "List all PHI entities in this document page."
+
+output_fields:
+  - name: entities
+    pattern: null        # null = use the full model output as-is
+    required: true
+```
+
+The default template (`templates/deid_template.yaml`) instructs the model to return a
+JSON array of `{label, text, bbox_2d}` objects with coordinates in `[0, 1000]` range.
+The inference script rescales to `[0, 1]` automatically. It uses the `{labels_with_guidelines}`
+placeholder, which is replaced at load time with a bullet list of `label: description` entries
+from `config/labels.yaml`. Curly braces in template string content must be doubled (`{{`, `}}`)
+to avoid Python's `.format()` interpreting them.
+
+Templates can also define a `structured_output` block — a JSON schema expressed as native
+YAML. When `--guided_json` is set, this schema is passed to the API via `response_format`
+to constrain the model's output. The `label.enum` field accepts the placeholder `"{labels}"`
+which is replaced at load time with the actual label list.
+
+| Template | Use case |
+|---|---|
+| `deid_template.yaml` | Default — standard and thinking models via vLLM or OpenAI API |
+| `deid_template_internvl.yaml` | InternVL3 — thinking protocol injected via system message |
+| `deid_template_medgemma.yaml` | MedGemma — `SYSTEM INSTRUCTION: think silently` preamble |
+| `gemma4_chat_template.jinja` | Passed via `--chat_template` to `vllm serve` to enable Gemma 4's thinking channel |
+
+### Thinking Models
+
+Thinking traces are automatically stripped from model output before JSON parsing. The mechanism depends on the model:
+
+| Model family | Thinking trigger | Strip mechanism |
+|---|---|---|
+| Qwen3 VL | `--enable_thinking` + `--reasoning_parser qwen3` (bsub) | `<think>…</think>` / bare `</think>` |
+| InternVL3 | System prompt in `deid_template_internvl.yaml` | `<think>…</think>` / bare `</think>` |
+| MedGemma | System instruction in `deid_template_medgemma.yaml` | `<unused94>…<unused95>` tokens |
+| Gemma 4 | `--reasoning_parser gemma4` + `gemma4_chat_template.jinja` | Fallback last-`[` JSON scan |
+
+---
+
+### Option A — Local Docker Container
 
 The fastest way to test a model on a small subset and visually inspect predictions:
 
@@ -305,20 +364,11 @@ The fastest way to test a model on a small subset and visually inspect predictio
 This runs inference (via `run_vllm_inference.sh`) then immediately renders bounding box
 predictions as annotated PNG images into `output/inference/<run_name>/renders/`.
 
-### Full Benchmark (`run_inference.sh`)
-
-```bash
-# Edit MODEL and DATASET_DIR at the top, then:
-./experiments/run_inference.sh
-```
-
-Runs over the configured splits and saves full results to `output/inference/<run_name>/results.json`.
-
-### Manual invocation (local VLLM)
+#### Manual invocation
 
 ```bash
 ./scripts/run_vllm_inference.sh \
-    --model Qwen/Qwen3-VL-7B-Thinking \
+    --model Qwen/Qwen3-VL-7B-Instruct \
     --vllm_max_model_len 24576 \
     --config config/inference/base.yaml \
     --input_dataset disi-unibo-nlp/paint-it-black \
@@ -331,19 +381,7 @@ Runs over the configured splits and saves full results to `output/inference/<run
 container** so `localhost:8000` is always reachable without network configuration.
 It reads `HF_HOME` and `HF_TOKEN` from `.env` automatically.
 
-### Remote API Backend (OpenAI, etc.)
-
-```bash
-./scripts/run_cont.sh python3 src/inference/run_inference.py \
-    --config config/inference/openai.yaml \
-    --input_dataset disi-unibo-nlp/paint-it-black \
-    --input_split base \
-    --from_hub \
-    --api_key $OPENAI_API_KEY \
-    --run_name eval_gpt4o_base
-```
-
-### `run_vllm_inference.sh` Reference
+#### `run_vllm_inference.sh` Reference
 
 ```
 Usage: ./scripts/run_vllm_inference.sh --model MODEL [vllm options] [inference options]
@@ -360,6 +398,78 @@ VLLM serve options (consumed by this script):
 
 All other flags are forwarded verbatim to run_inference.py.
 ```
+
+#### Remote API Backend (OpenAI, etc.)
+
+```bash
+./scripts/run_cont.sh python3 src/inference/run_inference.py \
+    --config config/inference/openai.yaml \
+    --input_dataset disi-unibo-nlp/paint-it-black \
+    --input_split base \
+    --from_hub \
+    --api_key $OPENAI_API_KEY \
+    --run_name eval_gpt4o_base
+```
+
+---
+
+### Option B — LSF/HPC Cluster (no Docker)
+
+`run_vllm_inference_bsub.sh` submits `vllm serve` as an LSF job on a GPU node, waits for
+the server to become ready (with host discovery and stale-server detection), runs inference
+locally, then kills the job. No Docker required. It reads `HF_HUB_CACHE` and `HF_TOKEN`
+from `.env`.
+
+#### Quick iteration
+
+```bash
+# Quick eval on LSF cluster (runs in background, logs to output/)
+./experiments/quick_eval_bsub.sh --split medium --n 20
+
+# Full benchmark across all three splits in parallel
+./experiments/run_all_splits_bsub.sh
+```
+
+`quick_eval_bsub.sh` runs inference then immediately renders predictions. It self-backgrounds
+by default (logs to `output/run_<name>.log`); pass `--fg` to run in the foreground.
+
+#### Manual invocation
+
+```bash
+./scripts/run_vllm_inference_bsub.sh \
+    --model Qwen/Qwen3-VL-7B-Instruct \
+    --reasoning_parser qwen3 \
+    --vllm_max_model_len 24576 \
+    --enable_prefix_caching \
+    --config config/inference/base.yaml \
+    --input_dataset disi-unibo-nlp/paint-it-black \
+    --input_split base \
+    --from_hub \
+    --run_name my_run
+```
+
+#### `run_vllm_inference_bsub.sh` Reference
+
+vLLM serve and bsub-specific flags consumed by this script (all other flags are forwarded to `run_inference.py`):
+
+| Flag | Default | Description |
+|---|---|---|
+| `--model MODEL` | — | Model name or HuggingFace path (required) |
+| `--vllm_port INT` | `8000` | Port for `vllm serve` |
+| `--vllm_gpu_memory_utilization FLOAT` | `0.95` | GPU memory fraction |
+| `--vllm_max_model_len INT` | `8192` | Max token context length |
+| `--vllm_tensor_parallel_size INT` | `1` | Tensor parallelism across GPUs |
+| `--bsub_mem STR` | `128G` | LSF memory request |
+| `--bsub_gpu_model STR` | H100 80GB | LSF GPU model selector |
+| `--reasoning_parser STR` | — | vLLM reasoning parser: `qwen3`, `gemma4`, or omit |
+| `--chat_template PATH` | — | Custom Jinja chat template (Gemma 4: `templates/gemma4_chat_template.jinja`) |
+| `--enable_prefix_caching` | off | Enable vLLM prefix caching |
+| `--kv_cache_dtype STR` | — | KV cache dtype, e.g. `fp8` for FP8-quantised models |
+| `--vision_tokens INT` | — | Gemma 4 image token budget: `70\|140\|280\|560\|1120` |
+| `--dtype STR` | — | Model dtype, e.g. `bfloat16` |
+| `--trust_remote_code` | off | Required for some models (InternVL, some Qwen variants) |
+
+---
 
 ### `run_inference.py` Reference
 
@@ -410,37 +520,14 @@ Tracking:
 Config files under `config/inference/` use the same key names and can be passed via
 `--config config/inference/base.yaml`. CLI flags override config values.
 
-### Prompt Templates
+### Output Files
 
-Templates live in `templates/` and are YAML files loaded by `TemplateHandler`. Content
-fields can be strings (text-only) or lists of typed blocks for multimodal messages:
+Each run writes its results to `output/inference/<run_name>/`:
 
-```yaml
-messages:
-  - role: system
-    content: "You are a de-identification expert..."
-  - role: user
-    content:
-      - type: image
-        variable: page_image     # PIL Image passed from the inference loop → base64 JPEG
-      - type: text
-        text: "List all PHI entities in this document page."
-
-output_fields:
-  - name: entities
-    pattern: null        # null = use the full model output as-is
-    required: true
-```
-
-The default template (`templates/deid_template.yaml`) instructs the model to return a
-JSON array of `{label, text, bboxes}` objects with coordinates in `[0, 1000]` range.
-The inference script rescales to `[0, 1]` automatically. Curly braces in template string
-content must be doubled (`{{`, `}}`) to avoid Python's `.format()` interpreting them.
-
-Templates can also define a `structured_output` block — a JSON schema expressed as native
-YAML. When `--guided_json` is set, this schema is passed to the API via `response_format`
-to constrain the model's output. The `label.enum` field accepts the placeholder `"{labels}"`
-which is replaced at load time with the actual label list from `config/labels.yaml`.
+| File | Description |
+|---|---|
+| `results.json` | Full results: args, metrics, per-sample predictions and annotations |
+| `raw_completions.jsonl` | Raw model completions, one JSON line per sample, flushed per batch — useful for debugging parse failures |
 
 ### Rendering Predictions
 
@@ -793,9 +880,9 @@ exponential-backoff retry logic. Works with any OpenAI-compatible endpoint.
 ./scripts/run_cont.sh python3 -m pytest src/tests/ -v
 ```
 
-Tests cover augmentation page-sampling logic, HF dataset mode, metrics computation, and
-LLM client retry behaviour. All tests use mocks or synthetic data — no GPU or network
-access required.
+Tests cover augmentation page-sampling logic, HF dataset mode, metrics computation, LLM
+client retry behaviour, inference script, and prediction rendering. All tests use mocks or
+synthetic data — no GPU or network access required.
 
 ### SLURM / HPC
 
@@ -803,5 +890,7 @@ access required.
 ./scripts/run_job.sh <command>
 ```
 
-Wraps `sbatch` with the project's standard resource request. See the script header for
-configurable SLURM variables (`PARTITION`, `GPUS`, `MEM`, `TIME`).
+Wraps `sbatch` to run any command inside the Docker container as a SLURM job. See the script
+header for configurable SLURM variables (`PARTITION`, `GPUS`, `MEM`, `TIME`).
+
+For LSF-based clusters, use `run_vllm_inference_bsub.sh` (see [Option B](#option-b--lsfhpc-cluster-no-docker) above).

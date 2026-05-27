@@ -8,7 +8,7 @@ input_split: base
 output_dir: output/inference
 
 # Prompt template
-template: templates/deid_template_guided.yaml
+template: templates/deid_template.yaml
 
 # Backend — run_vllm_inference.sh sets base_url automatically;
 # set manually here only when connecting to an already-running server.

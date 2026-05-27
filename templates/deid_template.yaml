@@ -9,9 +9,10 @@ messages:
                  one per line of text (e.g. a name split across two lines gets two boxes).
                  Coordinates are integers in [0, 1000], normalised relative to
                  page height (y) and page width (x).
-        label  – one of: {labels}
+        label  – one of the following:
+      {labels_with_guidelines}
         text   – exact text string as it appears in the image
-        
+
       Return ONLY a valid JSON array. No explanation, no markdown fences.
       If no PHI is present return: []
 
