@@ -7,6 +7,22 @@ import re
 import yaml
 
 
+def _safe_format(text: str, **kwargs) -> str:
+    """Substitute only {identifier} placeholders; leave all other braces untouched.
+
+    Unlike str.format(**kwargs), this function:
+    - Only replaces tokens of the form {word} where word is a valid Python identifier
+      (letters, digits, underscores, starting with a letter or underscore).
+    - Leaves CSS blocks ({color: red;}), empty braces ({}), format specs ({:.2f}),
+      and unknown identifiers entirely intact.
+    - Silently ignores kwargs that have no corresponding placeholder.
+    """
+    def _replace(m: re.Match) -> str:
+        key = m.group(1)
+        return str(kwargs[key]) if key in kwargs else m.group(0)
+    return re.sub(r'\{([A-Za-z_]\w*)\}', _replace, text)
+
+
 def _inject_labels_into_schema(node, labels_list: list):
     """Recursively replace the sentinel string "{labels}" with the labels list."""
     if isinstance(node, dict):
@@ -221,12 +237,12 @@ class TemplateHandler:
                 continue
             raw_content = msg["content"]
             if isinstance(raw_content, str):
-                content = raw_content.format(**kwargs)
+                content = _safe_format(raw_content, **kwargs)
             else:
                 content = []
                 for block in raw_content:
                     if block["type"] == "text":
-                        content.append({"type": "text", "text": block["text"].format(**kwargs)})
+                        content.append({"type": "text", "text": _safe_format(block["text"], **kwargs)})
                     elif block["type"] == "image":
                         image = kwargs[block["variable"]]
                         content.append({"type": "image_url", "image_url": {"url": _encode_image(image)}})

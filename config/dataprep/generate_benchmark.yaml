@@ -1,0 +1,7 @@
+run_name: benchmark_generation
+log_level: INFO
+model: gemini-3-flash-preview
+output_dir: output/benchmark
+retry_max: 3
+retry_wait: 10
+self_correct_max: 1
