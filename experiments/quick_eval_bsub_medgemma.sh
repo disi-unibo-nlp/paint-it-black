@@ -12,7 +12,7 @@
 #   ./experiments/quick_eval_bsub_medgemma.sh --n 10         # number of samples (default: full)
 #   ./experiments/quick_eval_bsub_medgemma.sh --split medium # dataset split (default: base)
 
-DATASET_DIR=disi-unibo-nlp/paint-it-black-2
+DATASET_DIR=disi-unibo-nlp/paint-it-black
 MODEL=google/medgemma-27b-it
 SPLIT=medium # base, medium, or hard
 N=""       # empty = full dataset; pass --n 10 for a debug run

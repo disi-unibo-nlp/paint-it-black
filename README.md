@@ -566,7 +566,8 @@ Results in `results.json` are structured into three groups. Full metric definiti
 | `char_f1` | Mean SQuAD-style char-level F1 on text-matched pairs (independent of bbox) |
 | `exact_match_rate` | Fraction of text-matched pairs with exact text reproduction |
 | `spatial_char_f1` | Mean char-level F1 on spatially-matched pairs (IoU > 0.5) — joint localization + transcription quality |
-| `spatial_exact_match_rate` | Fraction of spatially-matched pairs (IoU > 0.5) with exact text reproduction |
+| `spatial_exact_match_rate` | Fraction of spatially-matched pairs (IoU > 0.5) with exact text reproduction (denominator = matched pairs only) |
+| `pass_rate` | Fraction of **all** GT entities correctly found: exact text match + same label + bbox IoU > 0.5. Denominator is the full GT count, so missed and mislocalized entities both reduce the score. The primary joint quality metric. |
 | `hallucination_rate` | FP / (TP + FP) — entities predicted that don't correspond to any GT (text-based) |
 | `miss_rate` | FN / (TP + FN) — GT entities not found by the model (text-based) |
 | `format_compliance` | Fraction of samples where the model returned parseable JSON |
@@ -596,7 +597,7 @@ Results in `results.json` are structured into three groups. Full metric definiti
 | `mean_iou` | Mean IoU of pairs that already matched at IoU > 0.5. Always ≥ 0.5; measures precision of well-placed boxes only. |
 | `end_to_end` | Per-threshold breakdown. Keys are strings: `"@0.25"`, `"@0.5"`, `"@0.75"`. Each contains `micro` (P/R/F1/TP/FP/FN), `per_label`, and macro keys. |
 | `spatial_char_f1` | Mean char-level F1 evaluated on bbox-matched pairs (IoU > 0.5). Measures transcription quality conditioned on correct localization. |
-| `spatial_exact_match_rate` | Fraction of bbox-matched pairs (IoU > 0.5) where text was exactly reproduced. |
+| `spatial_exact_match_rate` | Fraction of bbox-matched pairs (IoU > 0.5) where text was exactly reproduced (denominator = matched pairs only). |
 
 #### Diagnostics
 

@@ -8,7 +8,7 @@
 #   ./experiments/quick_eval_bsub.sh --n 10        # number of samples (default 10)
 #   ./experiments/quick_eval_bsub.sh --split medium # dataset split (default base)
 
-DATASET_DIR=disi-unibo-nlp/paint-it-black-2 #disi-unibo-nlp/paint-it-black
+DATASET_DIR=disi-unibo-nlp/paint-it-black
 MODEL=google/gemma-4-26B-A4B-it #google/gemma-4-31B-it #google/gemma-4-26B-A4B-it #Qwen/Qwen3.5-27B-FP8
 SPLIT=medium        # base, medium, or hard
 N=""               # empty = full dataset; pass --n 10 for a debug run
