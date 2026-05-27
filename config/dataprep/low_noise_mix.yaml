@@ -41,12 +41,12 @@ lighting_gradient_transparency: 0.90  # fixes random.uniform(0.5,0.85) default w
 # ── low ink ─────────────────────────────────────────────────────────────────
 low_ink_p: 1.0
 low_ink_random_lines: 1
-low_ink_random_lines_count_range: [2, 5]
+low_ink_random_lines_count_range: [3, 8]
 low_ink_random_lines_consistent: 0
 low_ink_random_lines_noise_prob: 0.5
 low_ink_periodic_lines: 1
-low_ink_periodic_lines_count_range: [1, 3]
-low_ink_periodic_lines_period_range: [5, 12]
+low_ink_periodic_lines_count_range: [3, 6]
+low_ink_periodic_lines_period_range: [3, 8]
 low_ink_periodic_lines_consistent: 0
 low_ink_periodic_lines_noise_prob: 0.5
 
@@ -66,19 +66,54 @@ subtle_noise_p: 1.0
 subtle_noise_page_sampling: 1
 subtle_noise_num_profiles: 2
 subtle_noise_profile_weights: [0.5, 0.5]
-subtle_noise_profile_ranges:  [18, 35]
+subtle_noise_profile_ranges:  [25, 35]
+
+# ── scanner noise ─────────────────────────────────────────────────────────────────
+scanner_noise_p: 0.7
+scanner_noise_bad_photo_copy: 1
+scanner_noise_bad_photo_copy_noise_type: 1
+scanner_noise_bad_photo_copy_noise_side: random
+scanner_noise_bad_photo_copy_noise_iter: [1, 3]
+scanner_noise_bad_photo_copy_noise_size: [1, 1]
+scanner_noise_bad_photo_copy_noise_value: [60, 100]
+scanner_noise_bad_photo_copy_sparsity: [0.3, 0.7]
+scanner_noise_bad_photo_copy_concentration: [0.2, 0.6]
+scanner_noise_bad_photo_copy_blur_noise: -1
+scanner_noise_bad_photo_copy_wave_pattern: -1
+scanner_noise_bad_photo_copy_edge_effect: -1
+
+scanner_noise_dirty_rollers: 0
+scanner_noise_dirty_drum: 0
+scanner_noise_dirty_screen: 0
+
+# ── annotations ─────────────────────────────────────────────────────────────────
+annotations_p: 0.5
+annotations_markup: 1
+annotations_markup_sampling: 1
+annotations_markup_large_word_mode: 1
+annotations_markup_single_word_mode: 0
+annotations_markup_repetitions: [1, 1]
+annotations_markup_ink_weights: [0.0, 0.5, 0.0, 0.5]   # pencil, pen, marker, highlighter
+annotations_markup_type_weights: [0.0, 0.0, 0.0, 1.0]
+annotations_markup_num_lines_range: [5, 20]
+annotations_markup_length_range: [1.0, 1.0]
+annotations_markup_pen_thickness_range: [1, 1]
+annotations_markup_pen_colors: [0, 0, 0, 0, 0, 255]     # black, blue
+annotations_markup_highlighter_thickness_range: [1, 1]
+annotations_markup_highlighter_colors: [255, 255, 0, 0, 255, 255, 255, 0, 255, 255, 192, 203]  # yellow, blue, purple, pink
+annotations_markup_control_points_range: [2, 3]
+annotations_markup_line_offset: 3
+annotations_scribbles: 0
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 bleed_through_p: 0.0
 texture_p: 0.0
 stains_p: 0.0
 watermark_p: 0.0
-scanner_noise_p: 0.0
 geometric_p: 0.0
 shadow_cast_p: 0.0
 exposure_p: 0.0
 jpeg_p: 0.0
 folding_p: 0.0
 page_border_p: 0.0
-annotations_p: 0.0
 faxify_p: 0.0
