@@ -38,7 +38,7 @@ import numpy as np
 from pathlib import Path
 from pdf2image import convert_from_path
 from PIL import Image
-from datasets import Dataset, DatasetDict, load_from_disk
+from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
 from datasets import Image as HFImage
 from huggingface_hub import login
 from augraphy.augmentations.lib import smooth
@@ -80,6 +80,30 @@ from augraphy import (
 
 from core.utils import ConfigArgumentParser, init_logger, set_seed
 
+# Augraphy bug: InkGenerator.apply_highlighter_effect builds std_range with np.ceil,
+# which returns numpy.float64, then passes it to random.randint which requires int.
+from augraphy.utilities import inkgenerator as _ig
+_orig_generate_noise_clusters = _ig.InkGenerator.generate_noise_clusters
+def _patched_generate_noise_clusters(self, image, n_clusters=(200, 200), n_samples=(300, 300), std_range=(5, 10)):
+    std_range = (int(std_range[0]), int(std_range[1]))
+    return _orig_generate_noise_clusters(self, image, n_clusters, n_samples, std_range)
+_ig.InkGenerator.generate_noise_clusters = _patched_generate_noise_clusters
+
+# Augraphy bug: NoiseGenerator.generate_worley_noise uses sorted() inside nb.prange,
+# which breaks numba parallel type inference on this numba version (AssertionError in
+# typeinfer.py). Remap noise_type 4 (worley) to 1 (blobs) in generate_mask_main so the
+# broken JIT function is never called. Random selection (-1) still yields 4 types instead
+# of 5, which is acceptable.
+from augraphy.utilities import noisegenerator as _ng
+_orig_generate_mask_main = _ng.NoiseGenerator.generate_mask_main
+def _patched_generate_mask_main(self, noise_type, noise_side, noise_value, noise_background,
+                                noise_sparsity, noise_concentration, xsize, ysize):
+    if noise_type == 4:
+        noise_type = 1
+    return _orig_generate_mask_main(self, noise_type, noise_side, noise_value, noise_background,
+                                    noise_sparsity, noise_concentration, xsize, ysize)
+_ng.NoiseGenerator.generate_mask_main = _patched_generate_mask_main
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -93,6 +117,13 @@ _INK_TYPES = ["pencil", "pen", "marker", "highlighter"]
 # Augmentations suppressed when faxify fires (profile-sampling mutex).
 # Only active when faxify_profile_sampling=1 and faxify_p > 0.
 _FAXIFY_MUTEX_P_ATTRS = ["scanner_noise_p", "shadow_cast_p", "stains_p"]
+
+
+def _maybe_downscale(pil_img: Image.Image, scale: float) -> Image.Image:
+    if scale >= 1.0:
+        return pil_img
+    w, h = pil_img.size
+    return pil_img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
 
 
 def _resolve_markup_ink(args):
@@ -1214,12 +1245,12 @@ def augment_dataset_split(
 
     for i in range(n):
         if resample_set is not None and i not in resample_set:
-            # Keep existing augmented row unchanged
+            # Keep existing augmented row unchanged — do NOT apply output_scale here,
+            # the existing image is already at the correct scale from its original augmentation.
             existing_row = existing_dataset[i]
             rows.append({
-                "image":       existing_row["image"],
-                "page":        existing_row["page"],
-                "annotations": existing_row["annotations"],
+                **{k: existing_row[k] for k in existing_row if k != "image"},
+                "image": existing_row["image"],
             })
             continue
 
@@ -1234,11 +1265,10 @@ def augment_dataset_split(
             _post_phase_no_mutex if _faxify_mutex_active else None,
         )
 
-        pil_aug = Image.fromarray(cv2.cvtColor(augmented, cv2.COLOR_BGR2RGB))
+        pil_aug = _maybe_downscale(Image.fromarray(cv2.cvtColor(augmented, cv2.COLOR_BGR2RGB)), args.output_scale)
         rows.append({
-            "image":       pil_aug,
-            "page":        row["page"],
-            "annotations": row["annotations"],
+            **{k: row[k] for k in row if k != "image"},
+            "image": pil_aug,
         })
         logger.debug(f"  Augmented row {i}")
 
@@ -1511,6 +1541,8 @@ def main():
                         help="Split name for the output dataset (required in dataset mode)")
     parser.add_argument("--resample_ids", type=int, nargs="+", default=None,
                         help="Row indices (0-based) in the output split to re-augment and replace")
+    parser.add_argument("--output_scale", type=float, default=1.0,
+                        help="Downscale factor applied to all images before saving (e.g. 0.667 = 200/300 DPI). Default 1.0 = no resize.")
     parser.add_argument("--push_to_hub", action="store_true",
                         help="Push the output dataset to the HF Hub (dataset mode only)")
 
@@ -1572,8 +1604,24 @@ def main():
         )
 
         if args.push_to_hub:
-            login()
-            DatasetDict({args.output_split: augmented}).push_to_hub(output_dataset_path)
+            import os
+            from huggingface_hub import login
+            token = os.environ.get("HF_TOKEN")
+            if not token:
+                logger.error("HF_TOKEN environment variable is not set — cannot push to Hub.")
+                return
+            login(token=token)
+            try:
+                current = dict(load_dataset(output_dataset_path))
+                logger.info("Loaded existing splits from Hub: %s", list(current.keys()))
+            except Exception:
+                current = {}
+            current[args.output_split] = augmented
+            compatible = {k: v for k, v in current.items() if v.features == augmented.features}
+            stale = set(current) - set(compatible)
+            if stale:
+                logger.warning("Dropping schema-incompatible splits (need rebuild): %s", sorted(stale))
+            DatasetDict(compatible).push_to_hub(output_dataset_path, private=True)
             logger.info(f"Pushed split '{args.output_split}' to HF Hub: {output_dataset_path}")
         else:
             out_path = Path(output_dataset_path) / args.output_split

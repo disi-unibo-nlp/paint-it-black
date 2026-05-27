@@ -4,8 +4,14 @@ from pathlib import Path
 from typing import List
 from logging import Logger
 from core.utils import ConfigArgumentParser, init_logger
-from datasets import Dataset, DatasetDict
+from core.labels import load_labels
+import datasets as _ds
+_ds.logging.set_verbosity_error()
+_ds.disable_progress_bar()
+from datasets import Dataset, DatasetDict, load_dataset
 from datasets import Image as HFImage
+import huggingface_hub as _hfhub
+_hfhub.utils.disable_progress_bars()
 from huggingface_hub import login
 from pdf2image import convert_from_path
 
@@ -21,11 +27,11 @@ files is a dict keyed by PDF filename. Each file entry has:
 
 Each annotation object has:
 - id: unique string identifier
-- label: string in CATEGORY:SUBCATEGORY format (e.g. "NAME:PATIENT", "DATE", "ID:DOCUMENT_ID")
+- label: string in CATEGORY:SUBCATEGORY format (e.g. "NAME:PATIENT", "DATETIME", "ID:DOCUMENT_ID")
 - text: the annotated text content as it appears in the document
 - page_width, page_height: page dimensions in points (PDF units)
 - created: ISO 8601 timestamp
-- bboxes: list (of atleast 1 element) of bounding boxes — each bbox is a list of 4 floats [x_min, y_min, x_max, y_max]
+- bboxes: list (of atleast 1 element) of bounding boxes — each bbox is a list of 4 floats [y_min, x_min, y_max, x_max]
 normalized to [0, 1] relative to page dimensions. A single annotation can have multiple bounding boxes
 (e.g. for multi-line spans).
 """
@@ -67,56 +73,59 @@ def process_leaf_directory(leaf_dir: str, root_dir: str, logger: Logger) -> List
         data = json.load(f)
 
     pdfs_in_json = set(data["files"].keys())
-    skipped = 0
 
-    # ERROR (per-PDF): PDF in directory but not in annotations
+    issues: dict[str, list[str]] = {
+        "not in annotations": [],
+        "not in directory":   [],
+        "in_progress":        [],
+        "empty bboxes":       [],
+        "no annotations":     [],
+    }
+
     for pdf_name in pdfs_in_dir - pdfs_in_json:
-        logger.error(f"{rel_leaf / pdf_name} — in directory but not in annotations")
-        skipped += 1
+        issues["not in annotations"].append(pdf_name)
 
     for pdf_name, entry in data["files"].items():
         status = entry["status"]
-        pages = entry["pages"]
-        rel_pdf = rel_leaf / pdf_name
+        pages  = entry["pages"]
 
-        # ERROR: PDF in annotations but not in directory
         if pdf_name not in pdfs_in_dir:
-            logger.error(f"{rel_pdf} — in annotations but not in directory")
-            skipped += 1
+            issues["not in directory"].append(pdf_name)
             continue
 
-        # WARNING: in_progress
-        if status == "in_progress":
-            logger.warning(f"{rel_pdf} — in_progress, skipping")
-            skipped += 1
+        if status in ("pending", "in_progress"):
+            issues["in_progress"].append(pdf_name)
             continue
 
-        # ERROR: annotation with empty bboxes list
         bad_annotation = False
         for page_num, annotations in pages.items():
             for ann in annotations:
                 if not ann.get("bboxes"):
-                    logger.error(f"{rel_pdf} — page {page_num} annotation '{ann['id']}' has empty bboxes")
+                    issues["empty bboxes"].append(f"{pdf_name}:p{page_num}")
                     bad_annotation = True
                     break
             if bad_annotation:
                 break
         if bad_annotation:
-            skipped += 1
             continue
 
-        # WARNING: completed but zero annotations across all pages
-        total_annotations = sum(len(anns) for anns in pages.values())
-        if total_annotations == 0:
-            logger.warning(f"{rel_pdf} — completed with no annotations across all pages")
+        if sum(len(a) for a in pages.values()) == 0:
+            issues["no annotations"].append(pdf_name)
 
         instances.append({
             "pdf_path": str(leaf / pdf_name),
             "annotations": pages,
+            "rel_dir": str(rel_leaf),
         })
 
-    if skipped:
-        logger.info(f"{rel_leaf}/: {len(instances)} included, {skipped} skipped")
+    skipped = sum(len(v) for k, v in issues.items() if k != "no annotations")
+    errors  = {k: v for k, v in issues.items() if v and k not in ("in_progress", "no annotations")}
+    warns   = {k: v for k, v in issues.items() if v and k in ("in_progress", "no annotations")}
+    for kind, names in errors.items():
+        logger.error(f"{rel_leaf}/ [{kind}]: {', '.join(names)}")
+    for kind, names in warns.items():
+        logger.warning(f"{rel_leaf}/ [{kind}]: {', '.join(names)}")
+    logger.info(f"{rel_leaf}/: {len(instances)} included, {skipped} skipped")
 
     return instances
 
@@ -150,17 +159,26 @@ def build_instance_list(input_dir: str, logger: Logger) -> List[dict]:
 def build_dataset(instances: List[dict], dpi: int, logger: Logger) -> Dataset:
     "For each instance, convert the pdf to image(s) and return an annotated Hugging Face Dataset"
     rows = []
-    for inst in instances:
+    n = len(instances)
+    for idx, inst in enumerate(instances, 1):
+        print(f"\r  converting PDFs  {idx}/{n}", end="", flush=True)
         pages_images = convert_from_path(inst["pdf_path"], dpi=dpi)
+        doc_type    = Path(inst["rel_dir"]).parts[0]
+        total_pages = len(pages_images)
+        source_pdf  = Path(inst["pdf_path"]).name
         for i, pil_img in enumerate(pages_images):
             page_num = i + 1
             page_key = str(page_num)
             rows.append({
-                "image": pil_img,
-                "page": page_num,
+                "image":       pil_img,
+                "page":        page_num,
+                "total_pages": total_pages,
+                "doc_type":    doc_type,
+                "source_pdf":  source_pdf,
                 "annotations": inst["annotations"].get(page_key, []),
             })
-    logger.info(f"Built dataset with {len(rows)} rows from {len(instances)} PDFs")
+    print()
+    logger.info(f"Built dataset: {len(rows)} pages from {len(instances)} PDFs")
     dataset = Dataset.from_list(rows).cast_column("image", HFImage())
     return dataset
 
@@ -186,8 +204,22 @@ def main():
     dataset = build_dataset(instances, args.dpi, logger)
 
     if args.push_to_hub:
-        login()  # uses HF_TOKEN env var
-        DatasetDict({args.split_name: dataset}).push_to_hub(args.output)
+        token = os.environ.get("HF_TOKEN")
+        if not token:
+            logger.error("HF_TOKEN environment variable is not set — cannot push to Hub.")
+            return
+        login(token=token)
+        try:
+            current = dict(load_dataset(args.output))
+            logger.info("Loaded existing splits from Hub: %s", list(current.keys()))
+        except Exception:
+            current = {}
+        current[args.split_name] = dataset
+        compatible = {k: v for k, v in current.items() if v.features == dataset.features}
+        stale = set(current) - set(compatible)
+        if stale:
+            logger.warning("Dropping schema-incompatible splits (need rebuild): %s", sorted(stale))
+        DatasetDict(compatible).push_to_hub(args.output, private=True)
         logger.info(f"Pushed to HF Hub: {args.output} (split: {args.split_name})")
     else:
         out_path = Path(args.output) / args.split_name

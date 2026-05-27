@@ -1,0 +1,39 @@
+run_name: inference_run
+log_level: INFO
+seed: 42
+
+# Dataset
+input_dataset: data/test_ds
+input_split: base
+output_dir: output/inference
+
+# Prompt template
+template: templates/deid_template.yaml
+
+# Backend — run_vllm_inference.sh sets base_url automatically;
+# set manually here only when connecting to an already-running server.
+backend: vllm
+model: google/gemma-4-31B-it
+base_url: http://localhost:8000/v1
+api_key: EMPTY
+max_new_tokens: 16384
+timeout: 600
+batch_size: 8
+max_retries: 3
+# Enable thinking so the template doesn't suppress it with a closed empty channel.
+# vLLM's gemma4 reasoning parser does not reliably extract the thinking channel
+# into reasoning_content, so guided_json is disabled — JSON is extracted from
+# the end of the mixed content by _parse_json_output fallback scanning.
+enable_thinking: true
+
+# Structured outputs — disabled for Gemma 4: guided_json conflicts with the
+# gemma4 reasoning parser in vLLM (enable_in_reasoning=False means JSON schema
+# enforcement only starts after the thinking channel closes, but the parser
+# never finds the channel boundary, so constraints are never applied).
+guided_json: false
+
+# Evaluation
+iou_thresholds: [0.25, 0.5, 0.75]
+
+# Tracking
+wandb: true
