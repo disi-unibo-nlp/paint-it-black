@@ -11,7 +11,7 @@
 IMAGE_NAME=deid
 CONT_WORKDIR=/workdir
 JUPYTER_PORT=8888
-CUDA_VISIBLE_DEVICES=0
+CUDA_VISIBLE_DEVICES=0 # comment this if using run_cont in slurm
 
 # Load .env if present (set default if not specified)
 set -a; [ -f .env ] && source .env; set +a
