@@ -4,11 +4,12 @@
 
 A benchmark pipeline for evaluating multimodal large language models on the task of **medical document de-identification**. The project covers the full workflow from raw annotated PDFs to structured evaluation results:
 
-1. **Annotation** — browser-based tool for drawing PHI bounding boxes on PDF pages.
-2. **Dataset building** — convert annotated PDFs into a HuggingFace `Dataset` with image + label columns.
-3. **Analysis** — compute comprehensive statistics on dataset composition and label distribution.
-4. **Augmentation** — simulate realistic hospital scan degradation (fax, stains, noise, skew, …) to create difficulty levels.
-5. **Inference** — run any OpenAI-compatible vision-language model on each document page, extract predicted PHI entities, and compute a comprehensive suite of benchmark metrics.
+1. **Benchmark document generation** — use a Gemini LLM to synthesise realistic clinical document variants (lab reports, CT/MRI radiology reports, gynaecological consultations) as HTML + PDF, providing a controlled source of PHI-rich documents for the benchmark.
+2. **Annotation** — browser-based tool for drawing PHI bounding boxes on PDF pages.
+3. **Dataset building** — convert annotated PDFs into a HuggingFace `Dataset` with image + label columns.
+4. **Analysis** — compute comprehensive statistics on dataset composition and label distribution.
+5. **Augmentation** — simulate realistic hospital scan degradation (fax, stains, noise, skew, …) to create difficulty levels.
+6. **Inference** — run any OpenAI-compatible vision-language model on each document page, extract predicted PHI entities, and compute a comprehensive suite of benchmark metrics.
 
 ---
 
@@ -19,6 +20,7 @@ multimodal-deid/
 ├── config/
 │   ├── labels.yaml             # Canonical PHI label list — source of truth for the project
 │   ├── dataprep/               # Augmentation configs (presets + per-augmentation examples)
+│   │   └── generate_benchmark.yaml  # Benchmark generation config (model, retries, output dir)
 │   └── inference/
 │       ├── base.yaml           # Default inference config (local VLLM + Qwen3 thinking model)
 │       ├── openai.yaml         # Remote OpenAI backend config
@@ -35,6 +37,7 @@ multimodal-deid/
 │   ├── metrics.md              # Complete metrics reference with mathematical definitions
 │   └── metrics_design.md       # Metrics design rationale and redesign history
 ├── experiments/
+│   ├── generate_benchmark.sh   # Generate synthetic clinical documents via Gemini
 │   ├── augment_split.sh        # Build medium + hard augmented splits from base
 │   ├── augment_tuning.sh       # Run all augmentation example configs for visual tuning
 │   ├── load_annotations.sh     # Build base split from annotations and push to HF Hub
@@ -64,10 +67,11 @@ multimodal-deid/
 │   │   ├── template_handler.py # Prompt template loader + output parser (multimodal-aware)
 │   │   └── utils.py            # ConfigArgumentParser, logging, seed, output dir helpers
 │   ├── dataprep/
-│   │   ├── annotation_app.html # Standalone browser annotation tool (no server needed)
-│   │   ├── augment_pdfs.py     # PDF / HF dataset → augmented split pipeline
-│   │   ├── build_dataset.py    # Annotated PDFs → HuggingFace Dataset
-│   │   └── push_to_hub.py      # Resize local splits to target DPI and push to HF Hub
+│   │   ├── annotation_app.html  # Standalone browser annotation tool (no server needed)
+│   │   ├── augment_pdfs.py      # PDF / HF dataset → augmented split pipeline
+│   │   ├── build_dataset.py     # Annotated PDFs → HuggingFace Dataset
+│   │   ├── generate_benchmark.py # Gemini-driven synthetic document generator (HTML + PDF)
+│   │   └── push_to_hub.py       # Resize local splits to target DPI and push to HF Hub
 │   ├── inference/
 │   │   ├── metrics.py          # Full benchmark metric suite
 │   │   ├── render_predictions.py # Overlay prediction boxes on page images
@@ -76,11 +80,17 @@ multimodal-deid/
 │       ├── test_analyze_dataset.py
 │       ├── test_augment_dataset_hf.py
 │       ├── test_augment_page_sampling.py
+│       ├── test_generate_benchmark.py
 │       ├── test_llm_client.py
 │       ├── test_metrics.py
 │       ├── test_render_predictions.py
 │       └── test_run_inference.py
 └── templates/
+    ├── benchmark/
+    │   ├── ct_report.yaml              # CT radiology report generation template
+    │   ├── gynecological_report.yaml   # Gynaecological consultation generation template
+    │   ├── lab_report.yaml             # Lab report generation template
+    │   └── mri_report.yaml             # MRI radiology report generation template
     ├── deid_template.yaml              # Default multimodal PHI prompt template
     ├── deid_template_internvl.yaml     # InternVL3 variant (thinking via system prompt)
     ├── deid_template_medgemma.yaml     # MedGemma variant (thinking via system instruction)
@@ -172,6 +182,85 @@ Labels follow a `PARENT:SUBLABEL` convention. Current label set:
 Each label also has a one-line `description` field in `config/labels.yaml`. The `{labels_with_guidelines}` template placeholder (used by the default template) injects these descriptions as a bullet list into the prompt, giving the model concise annotation guidance per label type. The simpler `{labels}` placeholder remains available for a comma-separated list without descriptions.
 
 When adding or renaming labels: edit `config/labels.yaml`, then update `src/dataprep/annotation_app.html` (the `LABELS` array with its color/size metadata). The prompt template injects labels automatically at load time.
+
+---
+
+## Benchmark Document Generation
+
+`src/dataprep/generate_benchmark.py` uses the **Google Gemini API** to synthesise realistic
+synthetic clinical documents — HTML rendered to PDF via WeasyPrint — across four document types.
+Each variant is parameterised along a grid of country, patient demographics, exam/panel type,
+visual style, and page count, producing a diverse and controlled source of PHI-rich documents.
+
+### Prerequisites
+
+Add `GOOGLE_API_KEY` to your `.env` file. `run_cont.sh` loads `.env` automatically and
+passes it into the container:
+
+```
+GOOGLE_API_KEY=AIza...
+```
+
+### Quick start
+
+```bash
+# Generate 10 random MRI variants
+./experiments/generate_benchmark.sh
+
+# Preview the generation plan without making any API calls
+./scripts/run_cont.sh python3 src/dataprep/generate_benchmark.py \
+    --config dataprep/generate_benchmark --dry_run
+
+# Generate 5 random lab + CT variants
+./scripts/run_cont.sh python3 src/dataprep/generate_benchmark.py \
+    --config dataprep/generate_benchmark --types lab ct --count 5
+```
+
+Output goes to `output/benchmark/` by default: one `.html` and one `.pdf` per variant,
+plus a `manifest.json` tracking generation status and all parameters.
+
+### Document Types
+
+| Type | Template | Grid axes |
+|---|---|---|
+| `lab` | `templates/benchmark/lab_report.yaml` | pages (1–4), country, sex, age range, clinical context, lab panels, visual style |
+| `ct` | `templates/benchmark/ct_report.yaml` | pages (1–2), country, sex, age range, CT exam type, clinical indication, visual style |
+| `mri` | `templates/benchmark/mri_report.yaml` | pages (1–3), country, sex, age range, MRI exam type, clinical indication, visual style |
+| `gynecology` | `templates/benchmark/gynecological_report.yaml` | pages (1–3), country, age range, clinical scenario, visual style |
+
+Templates follow the standard `TemplateHandler` YAML format (system + user messages).
+The user message uses `{placeholder}` slots that are filled per variant. A `{page_context}`
+slot is pre-computed in the script from a page-count → description lookup before
+calling `handler.format()`.
+
+### Resumability
+
+On each run the script loads `manifest.json` from the output directory (if present) and
+skips any variant whose parameter combination already completed successfully. Re-running
+after a partial failure or interruption continues from where it left off.
+
+### Self-correction
+
+When `--self_correct_max` > 0 (default: 1), the model is shown the rendered PDF of its
+own HTML output and asked to fix layout issues (text clipping, sparse pages, sidebar
+height). The correction is only accepted if the page count stays correct and the PDF
+renders successfully.
+
+### `generate_benchmark.py` Reference
+
+Config file: `config/dataprep/generate_benchmark.yaml`. All keys can be overridden on the CLI.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--config STR` | — | Config file name under `config/dataprep/` (without `.yaml`) |
+| `--types STR+` | all | Document types to generate: `lab`, `ct`, `mri`, `gynecology` |
+| `--count INT` | — | Number of randomly sampled variants (across selected types). Omit for the full grid. |
+| `--dry_run` | off | Print the generation plan without making any API calls |
+| `--model STR` | `gemini-3-flash-preview` | Gemini model to use |
+| `--output_dir STR` | `output/benchmark` | Directory for generated HTML, PDF, and manifest |
+| `--retry_max INT` | `3` | Max attempts per variant before marking as failed |
+| `--retry_wait INT` | `10` | Seconds between retry attempts |
+| `--self_correct_max INT` | `1` | Visual self-correction rounds after initial render (0 = disabled) |
 
 ---
 
@@ -321,8 +410,8 @@ The default template (`templates/deid_template.yaml`) instructs the model to ret
 JSON array of `{label, text, bbox_2d}` objects with coordinates in `[0, 1000]` range.
 The inference script rescales to `[0, 1]` automatically. It uses the `{labels_with_guidelines}`
 placeholder, which is replaced at load time with a bullet list of `label: description` entries
-from `config/labels.yaml`. Curly braces in template string content must be doubled (`{{`, `}}`)
-to avoid Python's `.format()` interpreting them.
+from `config/labels.yaml`. Only `{identifier}` slots are substituted — other braces such as
+CSS blocks or JSON examples pass through untouched and do not need escaping.
 
 Templates can also define a `structured_output` block — a JSON schema expressed as native
 YAML. When `--guided_json` is set, this schema is passed to the API via `response_format`
@@ -871,6 +960,8 @@ Priority: explicit CLI args > config file values > `add_argument` defaults.
 **`TemplateHandler`** (`template_handler.py`) — loads prompt templates from YAML, fills
 `{placeholder}` slots and `variable:` image references, and extracts structured fields from
 model output via regex. PIL images are base64-encoded as JPEG automatically.
+Only `{identifier}` slots (matching `[A-Za-z_]\w*`) are substituted; all other braces —
+CSS blocks, empty `{}`, format specs — are left untouched and do not need escaping.
 
 **`LLMClient`** (`llm_client.py`) — thin wrapper around `openai.OpenAI` with configurable
 exponential-backoff retry logic. Works with any OpenAI-compatible endpoint.
