@@ -166,12 +166,20 @@ class TemplateHandler:
             for msg in messages:
                 if isinstance(msg.get("content"), str):
                     msg["content"] = msg["content"].replace("{labels}", labels_str)
+                elif isinstance(msg.get("content"), list):
+                    for block in msg["content"]:
+                        if block.get("type") == "text":
+                            block["text"] = block["text"].replace("{labels}", labels_str)
 
         if label_guidelines:
             guidelines_str = "\n".join(f"  - {name}: {desc}" for name, desc in label_guidelines)
             for msg in messages:
                 if isinstance(msg.get("content"), str):
                     msg["content"] = msg["content"].replace("{labels_with_guidelines}", guidelines_str)
+                elif isinstance(msg.get("content"), list):
+                    for block in msg["content"]:
+                        if block.get("type") == "text":
+                            block["text"] = block["text"].replace("{labels_with_guidelines}", guidelines_str)
 
         output_fields = []
         for fd in data.get("output_fields", []):

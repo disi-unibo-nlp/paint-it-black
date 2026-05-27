@@ -5,21 +5,21 @@ messages:
       Identify all Protected Health Information (PHI) in the document page image.
 
       For each PHI entity return:
+        bbox_2d – list of one or more [y_min, x_min, y_max, x_max] bounding boxes,
+                 one per line of text (e.g. a name split across two lines gets two boxes).
+                 Coordinates are integers in [0, 1000], normalised relative to
+                 page height (y) and page width (x).
         label  – one of the following:
       {labels_with_guidelines}
         text   – exact text string as it appears in the image
-        bboxes – list of [y_min, x_min, y_max, x_max] bounding boxes.
-                 Coordinates are integers in [0, 1000], normalised relative to
-                 page height (y) and width (x).
-                 Use multiple boxes when an entity spans non-contiguous regions.
 
       Return ONLY a valid JSON array. No explanation, no markdown fences.
       If no PHI is present return: []
 
       Example output:
       [
-        {{"bboxes": [[120, 50, 140, 280]], "label": "NAME:PATIENT", "text": "Mario Rossi"}},
-        {{"bboxes": [[220, 100, 240, 350]], "label": "DATETIME", "text": "15/03/2024"}}
+        {{"bbox_2d": [[120, 50, 140, 280]], "label": "NAME:PATIENT", "text": "Mario Rossi"}},
+        {{"bbox_2d": [[220, 100, 240, 350]], "label": "DATETIME", "text": "15/03/2024"}}
       ]
 
   - role: user
@@ -38,7 +38,7 @@ structured_output:
   type: array
   items:
     type: object
-    required: [label, text, bboxes]
+    required: [label, text, bbox_2d]
     additionalProperties: false
     properties:
       label:
@@ -46,7 +46,7 @@ structured_output:
         enum: "{labels}"
       text:
         type: string
-      bboxes:
+      bbox_2d:
         type: array
         items:
           type: array

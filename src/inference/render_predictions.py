@@ -117,7 +117,7 @@ def render_sample(
 
     for ent in pred_entities:
         label = ent.get("label", "?")
-        for bbox in ent.get("bboxes", []):
+        for bbox in ent.get("bbox_2d", []):
             _draw_box(draw, bbox, w, h, _PRED_COLOR, label, label_above=False, scale=scale, font=font)
 
     return img

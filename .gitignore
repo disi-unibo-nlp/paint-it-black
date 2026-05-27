@@ -36,3 +36,8 @@ htmlcov/
 # Editors
 .idea/
 .vscode/
+results*
+wandb/
+table*
+notes/
+appendix_tables.tex
