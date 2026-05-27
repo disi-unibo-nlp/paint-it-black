@@ -1,4 +1,17 @@
-# multimodal-deid
+# Paint-It-Black
+
+*Official code for Paint-It-Black (PIB) — the first benchmark for end-to-end, pixel-level PHI de-identification in clinical PDF documents using open-source MLLMs.*
+
+<p align="center">
+  <img src="images/abstract_figure.jpg" width="60%"
+       alt="PIB benchmark overview: PHI bounding-box annotations on a clinical lab report (left) and the end-to-end task diagram — Clinical PDF page → Multimodal LLM → PHI entities + bounding boxes (right)"/>
+</p>
+
+This repository contains the code for building, augmenting, and evaluating the **Paint-It-Black (PIB)** benchmark — the first benchmark designed to assess open-source multimodal large language models on **end-to-end, pixel-level PHI de-identification** in clinical PDF documents under a HIPAA-aligned label taxonomy.
+Clinical records arrive as structured PDFs with heterogeneous visual layouts, multi-column tables, and letterheads; PIB evaluates the raw spatial-grounding capability of MLLMs directly — no OCR stage, no text extraction.
+The benchmark dataset, comprising physician-validated documents with manually curated bounding-box annotations across multiple document types and three controlled visual degradation tiers, is publicly available on Hugging Face: [disi-unibo-nlp/paint-it-black](https://huggingface.co/datasets/disi-unibo-nlp/paint-it-black).
+
+---
 
 ## Overview
 
