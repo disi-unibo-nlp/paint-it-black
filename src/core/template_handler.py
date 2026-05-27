@@ -1,8 +1,21 @@
 from dataclasses import dataclass, field
 from typing import Optional, Union
 from pathlib import Path
+import base64
+import io
 import re
 import yaml
+
+
+def _inject_labels_into_schema(node, labels_list: list):
+    """Recursively replace the sentinel string "{labels}" with the labels list."""
+    if isinstance(node, dict):
+        return {k: _inject_labels_into_schema(v, labels_list) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_inject_labels_into_schema(item, labels_list) for item in node]
+    if node == "{labels}":
+        return labels_list
+    return node
 
 
 @dataclass
@@ -50,6 +63,13 @@ class ParsedOutput:
     success: bool
     format_quality: float
     fields: dict
+
+
+def _encode_image(pil_image) -> str:
+    buf = io.BytesIO()
+    pil_image.convert("RGB").save(buf, format="JPEG", quality=95)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/jpeg;base64,{b64}"
 
 
 class TemplateHandler:
@@ -103,6 +123,7 @@ class TemplateHandler:
         self,
         messages: list,
         output_fields: Optional[list] = None,
+        structured_output_schema: Optional[dict] = None,
     ):
         """
         Args:
@@ -113,19 +134,52 @@ class TemplateHandler:
         """
         self.messages = messages
         self.output_fields: list[OutputField] = output_fields or []
+        self.structured_output_schema: Optional[dict] = structured_output_schema
 
     @classmethod
-    def from_yaml(cls, path: Union[str, Path]) -> "TemplateHandler":
+    def from_yaml(
+        cls,
+        path: Union[str, Path],
+        labels: Optional[list] = None,
+        label_guidelines: Optional[list] = None,
+    ) -> "TemplateHandler":
         """
         Load a TemplateHandler from a YAML file.
 
         The YAML must have a "messages" key and optionally an "output_fields" key.
         See class docstring for the expected format.
+
+        If `labels` is provided, `{labels}` in string message content is replaced
+        with the comma-separated label list.
+
+        If `label_guidelines` is provided (list of (name, description) tuples),
+        `{labels_with_guidelines}` is replaced with a formatted bullet list:
+            - NAME: description
         """
         with open(path, "r") as f:
             data = yaml.safe_load(f)
 
         messages = data["messages"]
+
+        if labels:
+            labels_str = ", ".join(labels)
+            for msg in messages:
+                if isinstance(msg.get("content"), str):
+                    msg["content"] = msg["content"].replace("{labels}", labels_str)
+                elif isinstance(msg.get("content"), list):
+                    for block in msg["content"]:
+                        if block.get("type") == "text":
+                            block["text"] = block["text"].replace("{labels}", labels_str)
+
+        if label_guidelines:
+            guidelines_str = "\n".join(f"  - {name}: {desc}" for name, desc in label_guidelines)
+            for msg in messages:
+                if isinstance(msg.get("content"), str):
+                    msg["content"] = msg["content"].replace("{labels_with_guidelines}", guidelines_str)
+                elif isinstance(msg.get("content"), list):
+                    for block in msg["content"]:
+                        if block.get("type") == "text":
+                            block["text"] = block["text"].replace("{labels_with_guidelines}", guidelines_str)
 
         output_fields = []
         for fd in data.get("output_fields", []):
@@ -138,7 +192,11 @@ class TemplateHandler:
                 )
             )
 
-        return cls(messages=messages, output_fields=output_fields)
+        schema = data.get("structured_output")
+        if schema is not None and labels:
+            schema = _inject_labels_into_schema(schema, list(labels))
+
+        return cls(messages=messages, output_fields=output_fields, structured_output_schema=schema)
 
     def format(self, include_last_assistant: bool = False, **kwargs) -> list:
         """
@@ -147,17 +205,31 @@ class TemplateHandler:
         Args:
             include_last_assistant: If True and the last message has role "assistant",
                                     include it (used for SFT target formatting).
-            **kwargs: Values for {placeholder} slots in message content strings.
+            **kwargs: Values for {placeholder} slots. String values replace {name}
+                      tokens; PIL.Image values are base64-encoded when referenced
+                      by an image content block.
 
         Returns:
-            List of {"role": ..., "content": ...} dicts ready to pass to a tokenizer.
+            List of {"role": ..., "content": ...} dicts in OpenAI API format.
+            Content is a plain string for text-only messages or a list of typed
+            blocks for multimodal messages.
         """
         messages = []
         for i, msg in enumerate(self.messages):
             is_last = i == len(self.messages) - 1
             if is_last and msg["role"] == "assistant" and not include_last_assistant:
                 continue
-            content = msg["content"].format(**kwargs)
+            raw_content = msg["content"]
+            if isinstance(raw_content, str):
+                content = raw_content.format(**kwargs)
+            else:
+                content = []
+                for block in raw_content:
+                    if block["type"] == "text":
+                        content.append({"type": "text", "text": block["text"].format(**kwargs)})
+                    elif block["type"] == "image":
+                        image = kwargs[block["variable"]]
+                        content.append({"type": "image_url", "image_url": {"url": _encode_image(image)}})
             messages.append({"role": msg["role"], "content": content})
         return messages
 

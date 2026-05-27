@@ -1,0 +1,54 @@
+# Canonical PHI label names — source of truth for the whole project.
+#
+# When adding/removing labels:
+#   1. Edit this file
+#   2. Update src/dataprep/annotation_app.html (LABELS array, keep color/fw/fh metadata)
+#   templates/deid_template.yaml is auto-injected at load time — no manual edit needed.
+
+labels:
+  - name: NAME:PATIENT
+    description: Name of the patient; exclude honorifics (Mr., Mrs.) and annotate only the name token. Partial identifiers (isolated surname, period-separated initials such as M.R.) are included.
+  - name: NAME:STAFF
+    description: Name of a medical staff member (physicians, nurses, technicians, etc.); exclude titles (Dr., Prof.) and annotate only the name token. Partial identifiers included.
+  - name: NAME:ASSOCIATE
+    description: Name of a non-staff person associated with the patient (family member, caregiver, etc.); exclude honorifics and annotate only the name token. Partial identifiers included.
+  - name: NAME:FACILITY
+    description: Name of a hospital, clinic, laboratory, or healthcare facility.
+  - name: NAME:DEPARTMENT
+    description: Name of a department, ward, or unit within a facility.
+  - name: DATE_OF_BIRTH:UNDER_89
+    description: Date of birth of a patient aged 89 or younger.
+  - name: DATE_OF_BIRTH:OVER_89
+    description: Date of birth of a patient aged over 89; directly identifying under HIPAA Safe Harbor, on a par with names and addresses.
+  - name: DATETIME
+    description: Any date or date-time value other than date of birth, including isolated years in narrative prose.
+  - name: AGE:UNDER_89
+    description: Explicit age of a patient 89 years old or younger.
+  - name: AGE:OVER_89
+    description: Explicit age of a patient over 89; directly identifying under HIPAA Safe Harbor, on a par with names and addresses.
+  - name: ID:PATIENT_ID
+    description: Static per-patient identifier such as a medical record number.
+  - name: ID:DOCUMENT_ID
+    description: Document or report identifier (e.g. transcription code).
+  - name: ID:SPECIMEN_ID
+    description: Specimen or biological sample identifier.
+  - name: ID:STAFF_ID
+    description: Staff member identifier (badge number, employee ID, medical license number, etc.).
+  - name: ID:DEVICE_ID
+    description: Medical device identifier or serial number.
+  - name: ID:EXAM_ID
+    description: Examination or procedure identifier.
+  - name: ID:ADMISSION_ID
+    description: Episode-specific hospitalization or encounter identifier.
+  - name: CONTACT:PATIENT
+    description: Contact information (phone, fax, email) of the patient.
+  - name: CONTACT:STAFF
+    description: Personal contact information explicitly attributed to a specific staff member (e.g. a doctor's direct phone number); use only when clearly personal, not institutional.
+  - name: CONTACT:ASSOCIATE
+    description: Contact information of a non-staff associate of the patient.
+  - name: CONTACT:FACILITY
+    description: Contact information (phone, fax, email) of the facility or department; facility and department numbers are merged into this category.
+  - name: ADDRESS:PATIENT
+    description: Geographic address of the patient, from street level to city and country.
+  - name: ADDRESS:FACILITY
+    description: Geographic address of a healthcare facility, from street level to city and country.

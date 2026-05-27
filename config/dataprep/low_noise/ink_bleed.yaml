@@ -13,9 +13,9 @@ dpi: 300
 
 # ── showcased ─────────────────────────────────────────────────────────────────
 ink_bleed_p: 1.0
-ink_bleed_intensity_range: [0.65, 0.90]
-ink_bleed_kernel_size: [3, 8]
-ink_bleed_severity: [0.4, 0.85]
+ink_bleed_intensity_range: [0.70, 1.00]
+ink_bleed_kernel_size: [3, 6]
+ink_bleed_severity: [0.38, 0.85]
 
 # ── disabled ──────────────────────────────────────────────────────────────────
 bleed_through_p: 0.0

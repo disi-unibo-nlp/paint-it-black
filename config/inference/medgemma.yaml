@@ -1,0 +1,38 @@
+run_name: inference_run
+log_level: INFO
+seed: 42
+
+# Dataset
+input_dataset: data/test_ds
+input_split: base
+output_dir: output/inference
+
+# Prompt template — includes the MedGemma thinking system instruction
+template: templates/deid_template_medgemma.yaml
+
+# Backend — run_vllm_inference.sh sets base_url automatically;
+# set manually here only when connecting to an already-running server.
+backend: vllm
+model: google/medgemma-27b-it
+base_url: http://localhost:8000/v1
+api_key: EMPTY
+max_new_tokens: 16384
+timeout: 600
+batch_size: 8
+max_retries: 3
+
+# Thinking is triggered by the system instruction in the template, not by
+# vLLM chat_template_kwargs — so enable_thinking is left off here.
+# Thinking output is wrapped in <unused94>thought\n...<unused95> and stripped
+# by _parse_json_output before JSON extraction.
+enable_thinking: false
+
+# Structured outputs disabled: guided_json conflicts with free-form thinking
+# output; JSON is extracted from content by _parse_json_output fallback scanning.
+guided_json: false
+
+# Evaluation
+iou_thresholds: [0.25, 0.5, 0.75]
+
+# Tracking
+wandb: true
