@@ -939,31 +939,6 @@ Run all examples at once:
 
 ---
 
-#### Tips & Best Practices
-
-**DPI trade-offs**
-
-| DPI | Use case |
-|---|---|
-| `150` | Fast iteration / visual spot-checks |
-| `200` | Default — balanced quality and speed |
-| `300` | Final training data — sharp text, detailed artefacts, ~2× slower than 200 DPI |
-
-**Scanner skew** — Keep `geometric_rotate_range` within `[-5.0, 5.0]`. Real hospital
-scanners produce skew in the 0–3° range.
-
-**Number of augmentations vs. diversity** — Prioritise adding more source PDFs over
-increasing `num_augmentations`. 3–5 augmentations per page is a practical ceiling.
-
-**Reproducibility** — Same seed + same input = identical output. Change `seed` between
-runs to generate diverse variants.
-
-**Faxify and readability** — Faxify heavily degrades text and is automatically made
-mutually exclusive with scanner noise, shadow cast, and stains when
-`faxify_profile_sampling: 1`. Set `faxify_p` to control the desired rate directly.
-
----
-
 ## Development
 
 ### Core Utilities (`src/core/`)
