@@ -10,7 +10,7 @@
 This repository contains the code for building, augmenting, and evaluating the **Paint-It-Black (PIB)** benchmark — the first benchmark designed to assess open-source multimodal large language models on **end-to-end, pixel-level PHI de-identification** in clinical PDF documents under a HIPAA-aligned label taxonomy.
 Clinical records arrive as structured PDFs with heterogeneous visual layouts, multi-column tables, and letterheads; PIB evaluates the raw spatial-grounding capability of MLLMs directly — no OCR stage, no text extraction.
 
-The benchmark dataset, comprising physician-validated documents with manually curated bounding-box annotations across multiple document types and three controlled visual degradation tiers, will be publicly available on Hugging Face in case of acceptance.
+Some samples of the dataset are available in the "samples" folder. Whole benchmark dataset, comprising physician-validated documents with manually curated bounding-box annotations across multiple document types and three controlled visual degradation tiers, will be publicly available on Hugging Face in case of acceptance.
 
 ---
 
