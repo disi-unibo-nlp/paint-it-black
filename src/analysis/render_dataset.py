@@ -48,7 +48,7 @@ def _color_for(label: str) -> str:
 
 # ── Rendering ─────────────────────────────────────────────────────────────────
 
-def render_row(row: dict, idx: int = 0, total: int = 0) -> Image.Image:
+def render_row(row: dict, idx: int = 0, total: int = 0, *, draw_boxes: bool = True) -> Image.Image:
     image = row["image"].copy().convert("RGB")
     draw  = ImageDraw.Draw(image, "RGBA")
     w, h  = image.size
@@ -57,6 +57,9 @@ def render_row(row: dict, idx: int = 0, total: int = 0) -> Image.Image:
     chip_h = max(14, int(14 * scale))
     font   = _get_font(max(10, int(11 * scale)))
     stroke_w = max(2, int(2 * scale))
+
+    if not draw_boxes:
+        return image
 
     for ann in row["annotations"]:
         label  = ann["label"]
@@ -96,6 +99,8 @@ def main():
                         help="Output directory (default: data/renders/<split>)")
     parser.add_argument("--limit",      type=int, default=None,
                         help="Render only the first N rows")
+    parser.add_argument("--no-boxes",   action="store_true",
+                        help="Save images without bounding-box overlays")
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir) if args.output_dir else Path("data/renders") / args.split
@@ -119,7 +124,7 @@ def main():
         row   = ds[idx]
         src_img = row["image"] if isinstance(row["image"], Image.Image) else Image.fromarray(row["image"])
         dpi     = src_img.info.get("dpi")
-        img     = render_row(row, idx, total)
+        img     = render_row(row, idx, total, draw_boxes=not args.no_boxes)
         fname   = out_dir / f"{idx:04d}.png"
         img.save(fname, dpi=dpi) if dpi else img.save(fname)
         if (idx + 1) % 10 == 0 or idx + 1 == total:
