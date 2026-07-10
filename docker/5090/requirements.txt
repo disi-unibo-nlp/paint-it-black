@@ -14,3 +14,4 @@ gliner
 gliner2
 zshot
 docling
+transformers<5.0

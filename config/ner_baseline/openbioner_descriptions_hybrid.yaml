@@ -1,0 +1,124 @@
+# Zero-shot entity descriptions for the `openbioner` (LinkerSMXM) NER baseline — hybrid.
+#
+# Per-label best-of between v2 (config/ner_baseline/openbioner_descriptions.yaml, invented
+# examples) and v3 (config/ner_baseline/openbioner_descriptions_v3.yaml, real dataset examples),
+# based on measured base-split span-exact F1 for each label:
+#
+#   - v3 wins or ties on 21/23 labels (often by a wide margin — real surface forms clearly
+#     help SMXM match dates, ages, and ID schemes), so this file is v3 verbatim for those.
+#   - v2 wins on 2 labels: NAME:STAFF (16.4 vs 11.2 F1) and ID:STAFF_ID (16.0 vs 15.4 F1) —
+#     kept as v2's wording here.
+#
+# Label set must exactly match config/labels.yaml.
+
+labels:
+  - name: NAME:PATIENT
+    description: >
+      A patient name refers to the full or partial name of the person receiving medical care,
+      not including titles. It includes examples such as "MARCUS J STERLING", "PENHALION,
+      ARTHUR" (surname first), and "Arthur Winston Fletcher".
+  - name: NAME:STAFF
+    description: >
+      A healthcare staff name refers to the name, without title, of a physician, nurse,
+      or technician involved in patient care. It includes examples such as "Sarah Connor",
+      "Rossi", and "A. Muller".
+  - name: NAME:ASSOCIATE
+    description: >
+      A patient associate name refers to the name of a family member, caregiver, or other
+      non-staff person connected to the patient. It includes examples such as "DAVID STERLING",
+      "Margaret Abernathy", and "SARAH CHUNG".
+  - name: NAME:FACILITY
+    description: >
+      A healthcare facility name refers to the name of a hospital, clinic, or imaging or
+      cardiology center. It includes examples such as "CENTRAL VALLEY CARDIOLOGY INSTITUTE",
+      "St. Jude Medical Center", and "QUEEN'S PARK UNIVERSITY HEALTH CENTRE".
+  - name: NAME:DEPARTMENT
+    description: >
+      A hospital department name refers to the name of a ward, unit, or department within a
+      facility. It includes examples such as "RADIOLOGY DEPARTMENT", "Department of Medical
+      Imaging", and "Neuroradiology Division".
+  - name: DATE_OF_BIRTH:UNDER_89
+    description: >
+      A date of birth refers to the calendar date on which a patient aged 89 or younger was
+      born. It includes examples such as "05/18/1982", "1999-05-12", and "14 May 1997".
+  - name: DATE_OF_BIRTH:OVER_89
+    description: >
+      A date of birth of an elderly patient refers to the calendar date on which a patient
+      older than 89 was born. It includes examples such as "14/07/1931", "May 12, 1929", and
+      "14-OCT-1932".
+  - name: DATETIME
+    description: >
+      A date or time value refers to any calendar date, timestamp, or isolated year mentioned
+      in the text, other than a date of birth. It includes examples such as "11/14/2026",
+      "September 2026", and "14 February 2026".
+  - name: AGE:UNDER_89
+    description: >
+      A patient age refers to the explicit age in years of a patient who is 89 or younger. It
+      includes examples such as "44-year-old", "25", and "72Y".
+  - name: AGE:OVER_89
+    description: >
+      An age of an elderly patient refers to the explicit age in years of a patient older than
+      89. It includes examples such as "94Y", "94-year-old", and "Ninety-seven-year-old".
+  - name: ID:PATIENT_ID
+    description: >
+      A patient identifier refers to a static code assigned to a patient, such as a medical
+      record number. It includes examples such as "CV-9921-084", "82231-9042", and
+      "QPUH-992384-X".
+  - name: ID:DOCUMENT_ID
+    description: >
+      A document identifier refers to a code assigned to a specific report or transcription.
+      It includes examples such as "REP-CV-2026-09921", "RPT-2026-77812", and
+      "VR-MED-9928-VANDERBERG".
+  - name: ID:SPECIMEN_ID
+    description: >
+      A specimen identifier refers to a code assigned to a biological sample. It includes
+      examples such as "SP-44921-X", "2026/ED/4492", and "BC-9928110-24".
+  - name: ID:STAFF_ID
+    description: >
+      A staff identifier refers to a code assigned to a staff member, such as a badge
+      number or license number. It includes examples such as "Badge 5521", "License
+      MD-99213", and "Employee ID 40012".
+  - name: ID:DEVICE_ID
+    description: >
+      A device identifier refers to a serial number or code assigned to a medical device. It
+      includes examples such as "LIS-88219-J", "TOR-CENT-04", and "LIMS-2025-0044192".
+  - name: ID:EXAM_ID
+    description: >
+      An examination identifier refers to a code assigned to a specific procedure or exam. It
+      includes examples such as "8892-B", "CT-AORTA-CA-442", and "SJR-2025-99402".
+  - name: ID:ADMISSION_ID
+    description: >
+      An admission identifier refers to a code assigned to a specific hospitalization or
+      encounter. It includes examples such as "2026-CARD-0041", "2026/ER/44091", and
+      "TR-9923841-MRI".
+  - name: CONTACT:PATIENT
+    description: >
+      Patient contact information refers to a phone number, fax number, or email address
+      belonging to the patient. It includes examples such as "(02) 9552 1044",
+      "+61 411 009 238", and "0412 883 921".
+  - name: CONTACT:STAFF
+    description: >
+      Staff contact information refers to a phone number, fax number, or email address that
+      belongs personally to a specific staff member rather than to the facility. It includes
+      examples such as "a.vance@alfred.org.au", "(03) 9288 2211", and "s.jenkins@wcr-med.org".
+  - name: CONTACT:ASSOCIATE
+    description: >
+      Associate contact information refers to a phone number, fax number, or email address
+      belonging to a non-staff associate of the patient. It includes examples such as
+      "(604) 555-0198", "0411 222 333", and "416-555-0211".
+  - name: CONTACT:FACILITY
+    description: >
+      Facility contact information refers to a phone number, fax number, or email address
+      belonging to a healthcare facility or department. It includes examples such as
+      "(916) 555-0192", "radiology@nsgeneralimaging.ca", and "651-555-8000".
+  - name: ADDRESS:PATIENT
+    description: >
+      A patient address refers to the geographic address of the patient, from street to city
+      or country. It includes examples such as "18 Glebe Point Road, Glebe NSW 2037",
+      "1802-1500 GEORGIA ST, VANCOUVER", and "42 WICKHAM TER, BRISBANE CITY QLD 4000".
+  - name: ADDRESS:FACILITY
+    description: >
+      A facility address refers to the geographic address of a healthcare facility, from
+      street to city or country. It includes examples such as
+      "1422 MEDICAL PLAZA WAY, SACRAMENTO, CA 95814", "700 University Ave, Toronto, ON M5G 1Z5",
+      and "152 Victoria Parade, East Melbourne VIC 3002".

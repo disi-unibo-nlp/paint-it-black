@@ -1,0 +1,11 @@
+run_name: openbioner_nodeid_hybrid_run
+backend: openbioner
+model: disi-unibo-nlp/openbioner-base-v2
+label_map: config/ner_baseline/label_map.yaml
+label_guidelines: config/ner_baseline/openbioner_descriptions_hybrid.yaml
+device: cuda
+input_dataset: disi-unibo-nlp/paint-it-black
+input_split: base
+from_hub: true
+output_dir: output/ner_baseline
+wandb: false

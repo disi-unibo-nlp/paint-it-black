@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -94,6 +95,7 @@ def _save_ocr_cache(path: Path, rows: list, markdowns: list[str]) -> None:
 
 
 def _split_sentences(text: str, nlp) -> list[str]:
+    text = re.sub(r"\s+", " ", text)
     return [s.text.strip() for s in nlp(text).sents if s.text.strip()]
 
 
@@ -140,13 +142,35 @@ def _predict_gliner2(model, chunks, gliner_labels, threshold, reverse_map):
     return preds
 
 
+def _merge_adjacent_entities(chunk: str, ents) -> list[dict]:
+    """Merge adjacent same-label entities separated only by a comma (+ optional whitespace).
+
+    Works around zshot/SMXM's span decoding, which only chains consecutive same-label tokens
+    into one span: a comma token classified as background silently breaks one continuous
+    real-world entity (e.g. a full street address) into several fragments that individually
+    never exact-match the ground truth.
+    """
+    ents = sorted(ents, key=lambda e: e.start_char)
+    merged: list[dict] = []
+    for ent in ents:
+        if merged and merged[-1]["label_"] == ent.label_:
+            gap = chunk[merged[-1]["end_char"]:ent.start_char]
+            if re.fullmatch(r",?\s*", gap):
+                merged[-1]["end_char"] = ent.end_char
+                merged[-1]["text"] = chunk[merged[-1]["start_char"]:ent.end_char]
+                continue
+        merged.append({"label_": ent.label_, "start_char": ent.start_char,
+                        "end_char": ent.end_char, "text": ent.text})
+    return merged
+
+
 def _predict_openbioner(nlp_zshot, chunks, reverse_map):
     preds = []
     for chunk in chunks:
-        for ent in nlp_zshot(chunk).ents:
-            gt_label = reverse_map.get(ent.label_)
+        for ent in _merge_adjacent_entities(chunk, nlp_zshot(chunk).ents):
+            gt_label = reverse_map.get(ent["label_"])
             if gt_label:
-                preds.append({"label": gt_label, "text": ent.text, "score": 1.0})
+                preds.append({"label": gt_label, "text": ent["text"], "score": 1.0})
     return preds
 
 
@@ -176,6 +200,10 @@ def _build_parser() -> ConfigArgumentParser:
                         help="Model ID (HuggingFace repo or local path)")
     parser.add_argument("--label_map", type=str, default="config/ner_baseline/label_map.yaml",
                         help="Path to label_map YAML (GT label → NER label string)")
+    parser.add_argument("--label_guidelines", type=str, default=None,
+                        help="Path to label guidelines YAML (name+description list). "
+                             "Defaults to config/labels.yaml. Use for backend=openbioner to "
+                             "point at zero-shot-style descriptions instead of annotation guidelines.")
     parser.add_argument("--threshold", type=float, default=0.5,
                         help="Confidence threshold for entity detection (gliner / gliner2 only)")
     parser.add_argument("--device", type=str, default="cuda",
@@ -291,7 +319,7 @@ def _run(args) -> None:
         import zshot
         from zshot.utils.data_models import Entity
         from zshot.linker import LinkerSMXM
-        guidelines = dict(load_label_guidelines())
+        guidelines = dict(load_label_guidelines(args.label_guidelines))
         entities = [
             Entity(name=forward_map[gt], description=guidelines[gt])
             for gt in forward_map
