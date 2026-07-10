@@ -1,0 +1,11 @@
+run_name: gliner_multi_pii_run
+backend: gliner
+model: urchade/gliner_multi_pii-v1
+threshold: 0.5
+label_map: config/ner_baseline/label_map.yaml
+device: cuda
+input_dataset: disi-unibo-nlp/paint-it-black
+input_split: base
+from_hub: true
+output_dir: output/ner_baseline
+wandb: false

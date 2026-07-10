@@ -10,3 +10,7 @@ ipykernel
 ipywidgets
 openai
 pytest
+gliner
+gliner2
+zshot
+docling

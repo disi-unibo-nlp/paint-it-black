@@ -1,0 +1,31 @@
+# Maps each canonical GT label (from config/labels.yaml) to the label string
+# passed to GLiNER at inference time.
+#
+# Requirements:
+#   - All values must be UNIQUE (injective) so predictions can be reverse-mapped
+#     back to GT labels for metric computation.
+#   - Strings should be descriptive enough for zero-shot GLiNER generalization.
+
+NAME:PATIENT: "patient name"
+NAME:STAFF: "healthcare staff name"
+NAME:ASSOCIATE: "patient associate name"
+NAME:FACILITY: "healthcare facility name"
+NAME:DEPARTMENT: "hospital department name"
+DATE_OF_BIRTH:UNDER_89: "date of birth"
+DATE_OF_BIRTH:OVER_89: "date of birth of elderly patient"
+DATETIME: "date or time value"
+AGE:UNDER_89: "patient age"
+AGE:OVER_89: "age of elderly patient"
+ID:PATIENT_ID: "patient identifier"
+ID:DOCUMENT_ID: "document identifier"
+ID:SPECIMEN_ID: "specimen identifier"
+ID:STAFF_ID: "staff identifier"
+ID:DEVICE_ID: "device identifier"
+ID:EXAM_ID: "examination identifier"
+ID:ADMISSION_ID: "admission identifier"
+CONTACT:PATIENT: "patient contact information"
+CONTACT:STAFF: "staff contact information"
+CONTACT:ASSOCIATE: "associate contact information"
+CONTACT:FACILITY: "facility contact information"
+ADDRESS:PATIENT: "patient address"
+ADDRESS:FACILITY: "facility address"
