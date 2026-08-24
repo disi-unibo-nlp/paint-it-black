@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Paint It, Black: the first benchmark for end-to-end, pixel-level PHI de-identification in multimodal clinical PDF documents.">
+  <meta name="keywords" content="clinical NLP, de-identification, PHI, multimodal LLM, document understanding, HIPAA, Paint-It-Black">
+  <meta name="theme-color" content="#090d10">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Paint It, Black — Multimodal Clinical Document De-Identification">
+  <meta property="og:description" content="Reading PHI is not enough. A safe system must also locate exactly where it appears.">
+  <meta property="og:image" content="assets/img/pib-task.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>Paint It, Black — EMNLP 2026 Main Conference</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/site.css">
+  <script type="module" src="assets/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <nav class="nav shell" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="Paint It, Black home">
+        <span class="brand-mark" aria-hidden="true">PIB</span>
+        <span>Paint It, Black</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">
+        <span class="sr-only">Toggle navigation</span>
+        <span></span><span></span><span></span>
+      </button>
+      <div class="nav-links" id="nav-links">
+        <a href="#task">Task</a>
+        <a href="#benchmark">Benchmark</a>
+        <a href="#degradation">Degradation</a>
+        <a href="#results">Results</a>
+        <a href="#citation">Citation</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-grid shell">
+        <div class="hero-copy reveal">
+          <div class="venue"><span></span> EMNLP 2026 · Main Conference</div>
+          <h1><em>Paint It,</em> <span>Black</span></h1>
+          <p class="subtitle">Evaluating LLMs for De-Identification of Multimodal Clinical Documents</p>
+          <p class="lede">Reading sensitive information is not enough. A safe system must identify what it is—and locate exactly where it appears on the page.</p>
+
+          <div class="authors" aria-label="Authors">
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Francesco Zangrillo<sup>1</sup></a>
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Alessio Cocchieri<sup>1</sup></a>
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Giacomo Frisoni<sup>1</sup></a>
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Davide Freddi<sup>1</sup></a>
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Luca Ragazzi<sup>1</sup></a>
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Alberto Aguzzi<sup>2</sup></a>
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Diego Raimondo<sup>2</sup></a>
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Renato Seracchioli<sup>2</sup></a>
+            <a href="https://disi-unibo-nlp.github.io/people/" target="_blank" rel="noreferrer">Gianluca Moro<sup>1</sup></a>
+          </div>
+          <div class="author-affiliations">
+            <span><sup>1</sup> University of Bologna, Italy</span>
+            <span><sup>2</sup> IRCCS Azienda Ospedaliero-Universitaria di Bologna, Policlinico di Sant'Orsola, Italy</span>
+          </div>
+
+          <div class="collaboration-lockup" aria-label="Joint research collaboration between the University of Bologna and IRCCS Policlinico di Sant'Orsola">
+            <span class="collaboration-eyebrow">A joint research collaboration</span>
+            <div class="collaboration-partners">
+              <a class="collaboration-partner" href="https://disi-unibo-nlp.github.io/" target="_blank" rel="noreferrer">
+                <span class="partner-mark unibo-mark" aria-hidden="true">U</span>
+                <span><strong>University of Bologna</strong><small>UniBoNLP</small></span>
+              </a>
+              <span class="collaboration-times" aria-hidden="true">×</span>
+              <a class="collaboration-partner" href="https://www.aosp.bo.it/il-policlinico/chi-siamo" target="_blank" rel="noreferrer">
+                <span class="partner-mark hospital-mark" aria-hidden="true">S</span>
+                <span><strong>Policlinico di Sant’Orsola</strong><small>IRCCS · Bologna</small></span>
+              </a>
+            </div>
+          </div>
+
+          <div class="actions">
+            <span class="button disabled" aria-disabled="true">Paper · coming soon</span>
+            <a class="button secondary" href="https://github.com/disi-unibo-nlp/paint-it-black" target="_blank" rel="noreferrer">View code <span aria-hidden="true">↗</span></a>
+            <a class="button secondary" href="#citation">BibTeX <span aria-hidden="true">↓</span></a>
+          </div>
+        </div>
+
+        <div class="redaction-stage reveal" data-mode="detect" aria-label="Interactive PHI detection and redaction example">
+          <div class="stage-toolbar">
+            <span class="synthetic-badge">Synthetic clinical record</span>
+            <div class="mode-switch" role="group" aria-label="Choose visualization mode">
+              <button type="button" class="active" data-mode-button="detect">Detect</button>
+              <button type="button" data-mode-button="redact">Redact</button>
+            </div>
+          </div>
+
+          <div class="clinical-page">
+            <div class="record-head">
+              <div><strong>WESTSHORE</strong><span>REGIONAL MEDICAL CENTER</span></div>
+              <b>LABORATORY<br>SERVICES</b>
+            </div>
+            <div class="record-meta">
+              <div><small>Patient</small><strong class="phi name" data-label="NAME:PATIENT">ELEANOR GRACE</strong></div>
+              <div><small>Date of birth</small><strong class="phi date" data-label="DATE_OF_BIRTH">07/12/1951</strong></div>
+              <div><small>Record no.</small><strong class="phi id" data-label="ID:PATIENT">MRN-882910-X</strong></div>
+            </div>
+            <div class="record-section">Complete Blood Count</div>
+            <div class="record-table">
+              <div><b>Analyte</b><b>Value</b><b>Range</b></div>
+              <div><span>White Blood Cell Count</span><span>6.4</span><span>3.5–10.5</span></div>
+              <div><span>Hemoglobin</span><span>11.4</span><span>11.6–15.5</span></div>
+              <div><span>Platelet Count</span><span>312</span><span>150–450</span></div>
+            </div>
+            <div class="record-foot">Validated: <strong class="phi datetime" data-label="DATETIME">05/15/2024 09:22 AM</strong></div>
+          </div>
+
+          <p class="stage-caption"><strong>Detect</strong> labels PHI and predicts its bounding box. <strong>Redact</strong> shows the privacy-critical end result.</p>
+        </div>
+      </div>
+
+      <div class="stats shell reveal" aria-label="Benchmark at a glance">
+        <div><strong>414</strong><span>page instances</span></div>
+        <div><strong>2,579</strong><span>PHI annotations</span></div>
+        <div><strong>23</strong><span>HIPAA-aligned entity types</span></div>
+        <div><strong>8</strong><span>open multimodal LLMs</span></div>
+      </div>
+    </section>
+
+    <section class="section shell" id="task">
+      <div class="section-kicker reveal">The missing evaluation</div>
+      <div class="statement reveal">
+        <h2>A model can read the right PHI<br>and still redact the <em>wrong pixels.</em></h2>
+        <p>Text-only benchmarks measure whether a model recognizes a sensitive span. Clinical PDFs add a second requirement: the model must ground that span precisely in a heterogeneous visual layout.</p>
+      </div>
+
+      <div class="capability-flow reveal" aria-label="Three capabilities required by PIB">
+        <article class="capability text-cap">
+          <span>01 · Read</span>
+          <h3>Mention extraction</h3>
+          <p>Transcribe the PHI surface form exactly as printed.</p>
+          <code>"ELEANOR GRACE"</code>
+        </article>
+        <div class="flow-plus" aria-hidden="true">+</div>
+        <article class="capability spatial-cap">
+          <span>02 · Locate</span>
+          <h3>Spatial grounding</h3>
+          <p>Predict normalized coordinates that cover the correct region.</p>
+          <code>[0.178, 0.096, 0.327, 0.188]</code>
+        </article>
+        <div class="flow-equals" aria-hidden="true">=</div>
+        <article class="capability joint-cap">
+          <span>03 · Protect</span>
+          <h3>Joint pass rate</h3>
+          <p>Text, label, and location must all be correct together.</p>
+          <code>PHI safely redacted</code>
+        </article>
+      </div>
+
+      <div class="core-insight reveal">
+        <div class="insight-label">The central finding</div>
+        <p><strong>Mention extraction is within reach.</strong> Spatial grounding remains the decisive bottleneck—and text-level evaluation alone conceals it.</p>
+      </div>
+    </section>
+
+    <section class="section benchmark-band" id="benchmark">
+      <div class="shell">
+        <div class="section-heading reveal">
+          <div>
+            <div class="section-kicker">The PIB benchmark</div>
+            <h2>Clinical PDFs,<br>evaluated end to end.</h2>
+          </div>
+          <p>PIB casts de-identification as visually grounded NER: from a raw page image directly to HIPAA-aligned entity labels, exact strings, and bounding boxes—with no OCR, parser, or retrieval model in between.</p>
+        </div>
+
+        <div class="benchmark-grid">
+          <button class="figure-card zoom-trigger reveal" type="button" aria-label="Enlarge the PIB benchmark overview">
+            <img src="assets/img/pib-task.png" alt="PIB benchmark overview showing a clinical page with PHI bounding boxes and the end-to-end multimodal task" loading="lazy">
+            <span>Enlarge figure</span>
+          </button>
+
+          <div class="benchmark-facts">
+            <article class="fact reveal"><span>4</span><div><h3>Clinical document types</h3><p>Laboratory, CT, MRI, and gynecological reports.</p></div></article>
+            <article class="fact reveal"><span>3</span><div><h3>Difficulty tiers</h3><p>Clean source pages plus controlled medium and hard visual degradation.</p></div></article>
+            <article class="fact reveal"><span>7</span><div><h3>PHI macro-categories</h3><p>Names, dates, age, addresses, contacts, identifiers, and date of birth.</p></div></article>
+            <article class="fact reveal"><span>0</span><div><h3>Real patient records</h3><p>Every document is synthetic and reviewed for clinical plausibility.</p></div></article>
+          </div>
+        </div>
+
+        <div class="taxonomy-strip reveal" aria-label="HIPAA-aligned entity taxonomy">
+          <span class="tax-name">Name</span><span class="tax-date">Datetime</span><span class="tax-dob">Date of birth</span><span class="tax-age">Age</span><span class="tax-address">Address</span><span class="tax-contact">Contact</span><span class="tax-id">ID</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell" id="degradation">
+      <div class="section-heading reveal">
+        <div>
+          <div class="section-kicker">Controlled visual decay</div>
+          <h2>From clean render<br>to hospital reality.</h2>
+        </div>
+        <p>Every source page is replicated across three difficulty tiers while labels and bounding boxes remain fixed, isolating robustness to physical acquisition artifacts.</p>
+      </div>
+
+      <div class="difficulty-grid">
+        <article class="difficulty reveal">
+          <button class="document-preview zoom-trigger" type="button" aria-label="Enlarge the base clinical document">
+            <img src="assets/img/base.webp" alt="Base split clinical document with PHI annotations" loading="lazy">
+            <span>View page</span>
+          </button>
+          <div class="difficulty-copy"><span>01</span><h3>Base</h3><p>Clean PDF rendered at 144 DPI.</p></div>
+        </article>
+        <article class="difficulty reveal">
+          <button class="document-preview zoom-trigger" type="button" aria-label="Enlarge the medium-degradation clinical document">
+            <img src="assets/img/medium.webp" alt="Medium split clinical document with seven visual artifacts and PHI annotations" loading="lazy">
+            <span>View page</span>
+          </button>
+          <div class="difficulty-copy"><span>02</span><h3>Medium</h3><p>Seven scan, print, and paper artifacts.</p></div>
+        </article>
+        <article class="difficulty hard reveal">
+          <button class="document-preview zoom-trigger" type="button" aria-label="Enlarge the hard-degradation clinical document">
+            <img src="assets/img/hard.webp" alt="Hard split clinical document with severe visual degradation and PHI annotations" loading="lazy">
+            <span>View page</span>
+          </button>
+          <div class="difficulty-copy"><span>03</span><h3>Hard</h3><p>Eleven artifacts, fax noise, stains, shadows, and markup.</p></div>
+        </article>
+      </div>
+
+      <p class="synthetic-note reveal"><strong>All names and records shown above are synthetic.</strong> No real patient, hospital, or clinician data was used to construct PIB.</p>
+    </section>
+
+    <section class="section results-band" id="results">
+      <div class="shell">
+        <div class="section-heading reveal">
+          <div>
+            <div class="section-kicker">Main results</div>
+            <h2>Strong readers.<br>Unreliable grounders.</h2>
+          </div>
+          <p>Switch metrics to see how a compact text-level ranking becomes a sharp capability divide once correct localization is required.</p>
+        </div>
+
+        <div class="results-explorer reveal">
+          <div class="metric-tabs" role="tablist" aria-label="Choose result metric">
+            <button role="tab" aria-selected="true" data-metric="text">Text F1</button>
+            <button role="tab" aria-selected="false" data-metric="spatial">Spatial F1</button>
+            <button role="tab" aria-selected="false" data-metric="pass">Pass Rate</button>
+          </div>
+          <div class="metric-description" id="metric-description">Exact PHI span extraction, ignoring bounding-box placement.</div>
+          <div class="model-chart" id="model-chart" aria-live="polite"></div>
+          <div class="chart-foot"><span>Average across Base, Medium, and Hard splits</span><span>Higher is better · %</span></div>
+        </div>
+
+        <div class="finding-grid">
+          <article class="finding reveal"><strong>73.7</strong><h3>Best Text F1</h3><p>Gemma-4-31B shows that current MLLMs can often recognize and transcribe PHI.</p></article>
+          <article class="finding reveal"><strong>61.6</strong><h3>Best joint Pass Rate</h3><p>Even the leading model remains far from the reliability required for clinical deployment.</p></article>
+          <article class="finding reveal"><strong>0.0</strong><h3>Spatial F1 for two models</h3><p>InternVL3.5-14B and MedGemma-27B fail to produce usable document-level grounding.</p></article>
+        </div>
+
+        <div class="quote-result reveal">
+          <span aria-hidden="true">“</span>
+          <p>A model that correctly reads <code>John Smith</code> while placing its redaction rectangle on the wrong line provides no privacy protection.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell" id="safety">
+      <div class="safety-grid">
+        <div class="safety-copy reveal">
+          <div class="section-kicker">Privacy by construction</div>
+          <h2>A benchmark for sensitive data—without sensitive data.</h2>
+          <p>Real medical records cannot be openly released. PIB uses synthetic clinical documents, a physician-guided generation pipeline, manual bounding-box annotation, and controlled physical degradation to create a reproducible evaluation without re-identification risk.</p>
+          <div class="safety-pills"><span>No real patients</span><span>Physician validated</span><span>Locally deployable models</span><span>HIPAA-aligned taxonomy</span></div>
+          <div class="clinical-collaboration">
+            <span>Clinical research partnership</span>
+            <p>PIB was developed through a collaboration between <strong>UniBoNLP</strong> and the <strong>IRCCS Policlinico di Sant’Orsola</strong>, bringing multimodal NLP and clinical expertise into the same evaluation pipeline.</p>
+          </div>
+        </div>
+        <button class="annotation-figure zoom-trigger reveal" type="button" aria-label="Enlarge the PIB annotation interface">
+          <img src="assets/img/annotation-tool.png" alt="Custom PIB interface for manually annotating PHI bounding boxes on synthetic clinical documents" loading="lazy">
+          <span>Enlarge annotation tool</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="section citation-band" id="citation">
+      <div class="shell citation-grid">
+        <div class="reveal">
+          <div class="section-kicker">Citation</div>
+          <h2>If PIB helps your research, please cite it.</h2>
+          <p>The page range and official Anthology identifier can be added when the proceedings metadata becomes available.</p>
+        </div>
+        <div class="bibtex reveal">
+          <button class="copy-button" type="button" aria-label="Copy BibTeX">Copy</button>
+          <pre><code id="bibtex-code">@inproceedings{zangrillo2026paint,
+  author    = {Francesco Zangrillo and Alessio Cocchieri and
+               Giacomo Frisoni and Davide Freddi and Luca Ragazzi and
+               Alberto Aguzzi and Diego Raimondo and Renato Seracchioli and
+               Gianluca Moro},
+  title     = {Paint It, Black: Evaluating LLMs for De-Identification
+               of Multimodal Clinical Documents},
+  booktitle = {Proceedings of the 2026 Conference on Empirical Methods in Natural
+               Language Processing, {EMNLP} 2026, Budapest, Hungary, October 24-29, 2026},
+  publisher = {Association for Computational Linguistics},
+  year      = {2026}
+}</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="soundtrack" data-soundtrack data-playing="false" aria-label="Official soundtrack player">
+    <button class="soundtrack-trigger" type="button" aria-expanded="false" aria-controls="soundtrack-player" aria-pressed="false">
+      <span class="soundtrack-vinyl" aria-hidden="true"><span></span></span>
+      <span class="soundtrack-copy">
+        <small>Original inspiration</small>
+        <strong>Paint It, Black</strong>
+        <em>The Rolling Stones</em>
+      </span>
+      <span class="soundtrack-action" data-soundtrack-action aria-hidden="true">▶</span>
+    </button>
+    <div class="soundtrack-player" id="soundtrack-player" aria-hidden="true">
+      <div id="spotify-embed"></div>
+      <a href="https://open.spotify.com/track/3qWi17QFSrLgj0g87zGwc6" target="_blank" rel="noreferrer">Open in Spotify ↗</a>
+    </div>
+  </aside>
+
+  <dialog class="lightbox" id="figure-lightbox" aria-labelledby="lightbox-caption">
+    <button class="lightbox-close" type="button" aria-label="Close enlarged figure">×</button>
+    <div class="lightbox-content">
+      <img id="lightbox-image" src="" alt="">
+      <p id="lightbox-caption"></p>
+    </div>
+  </dialog>
+
+  <footer>
+    <div class="shell footer-inner">
+      <div><strong>Paint It, Black</strong><span>University of Bologna · EMNLP 2026 Main Conference</span></div>
+      <a href="https://github.com/disi-unibo-nlp/paint-it-black" target="_blank" rel="noreferrer">GitHub repository ↗</a>
+    </div>
+  </footer>
+</body>
+</html>
